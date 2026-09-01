@@ -1,0 +1,16 @@
+.gradle/
+build/
+out/
+bin/
+.idea/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.vscode/
+run/
+openspec/
+*.md
+!README.md

@@ -1,0 +1,20 @@
+dependencies {
+    compileOnly 'com.mrleonardos.codecore:CodeCore:0.1.0:api'
+    runtimeOnly 'com.mrleonardos.codecore:CodeCore:0.1.0:dev'
+    compileOnly 'com.mrleonardos:codesides:1.0.0'
+
+    testCompileOnly 'com.mrleonardos.codecore:CodeCore:0.1.0:api'
+    testRuntimeOnly 'com.mrleonardos.codecore:CodeCore:0.1.0:dev'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.ow2.asm:asm-debug-all:5.0.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+    }
+}
