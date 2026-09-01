@@ -7,7 +7,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 
-final class ForgeLifecycle {
+public final class ForgeLifecycle {
 
     private final PlayerContexts contexts;
     private final OperatorWatch operators;

@@ -284,4 +284,58 @@ class ImportGateTest {
         writer.visitEnd();
         return writer.toByteArray();
     }
+
+    /**
+     * FML генерирует обработчик события в своём пакете и обращается к классу слушателя напрямую,
+     * поэтому непубличный класс с {@code @SubscribeEvent} даёт IllegalAccessError на первом же событии.
+     * Сборка и тесты такого не ловят: мод падает только в игре.
+     */
+    @Test
+    void eventListenersArePublic() throws IOException {
+        List<String> hidden = new ArrayList<>();
+        try (Stream<Path> files = Files.walk(compiledClasses())) {
+            files.filter(
+                file -> file.toString()
+                    .endsWith(".class"))
+                .sorted()
+                .forEach(file -> checkListener(file, hidden));
+        }
+        assertTrue(hidden.isEmpty(), "классы с @SubscribeEvent обязаны быть public: " + hidden);
+    }
+
+    private static void checkListener(Path file, List<String> hidden) {
+        try {
+            ClassReader reader = new ClassReader(Files.readAllBytes(file));
+            boolean[] subscribes = new boolean[1];
+            int[] access = new int[1];
+            reader.accept(new ClassVisitor(Opcodes.ASM5) {
+
+                @Override
+                public void visit(int version, int classAccess, String name, String signature, String superName,
+                    String[] interfaces) {
+                    access[0] = classAccess;
+                }
+
+                @Override
+                public MethodVisitor visitMethod(int methodAccess, String name, String descriptor, String signature,
+                    String[] exceptions) {
+                    return new MethodVisitor(Opcodes.ASM5) {
+
+                        @Override
+                        public AnnotationVisitor visitAnnotation(String annotation, boolean visible) {
+                            if (annotation.endsWith("SubscribeEvent;")) {
+                                subscribes[0] = true;
+                            }
+                            return null;
+                        }
+                    };
+                }
+            }, ClassReader.SKIP_FRAMES);
+            if (subscribes[0] && (access[0] & Opcodes.ACC_PUBLIC) == 0) {
+                hidden.add(reader.getClassName());
+            }
+        } catch (IOException failure) {
+            throw new IllegalStateException("не прочитан класс " + file, failure);
+        }
+    }
 }
