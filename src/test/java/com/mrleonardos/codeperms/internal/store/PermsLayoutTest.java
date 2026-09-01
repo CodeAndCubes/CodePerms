@@ -74,6 +74,17 @@ class PermsLayoutTest {
     }
 
     @Test
+    void everyFileStartsWithALineAboutWhatItIs() {
+        assertTrue(
+            TestConfigs.read(permissions().resolve("perms.toml"))
+                .startsWith("# Настройки CodePerms."),
+            "шапка файла говорит, что это за файл и где лежит остальное");
+        assertTrue(
+            TestConfigs.read(permissions().resolve("perms-groups.toml"))
+                .startsWith("# Группы и треки CodePerms."));
+    }
+
+    @Test
     void settingsFileHoldsTheRareValuesAndNothingElse() {
         assertEquals(OWN_KEYS, keysOf(TestConfigs.read(permissions().resolve("perms.toml"))));
     }

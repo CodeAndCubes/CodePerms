@@ -15,6 +15,10 @@ import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.NodeEntry;
 import com.mrleonardos.codeperms.internal.store.SchemaMigrations;
 
+@Comment({ "Настройки CodePerms. Здесь лежит редкое, а общее для всей линейки в config/code/config.toml:",
+    "провайдер хранилища и автосохранение в [storage], записи в лог в [audit],",
+    "группа по умолчанию и группа операторов в [permissions].",
+    "Группы, треки и игроки лежат рядом в perms-groups.toml и perms-players.json." })
 public final class PermsSettings {
 
     public static final String MODID = "codeperms";
