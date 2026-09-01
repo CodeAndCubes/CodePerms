@@ -127,17 +127,14 @@ class JsonPermissionStoreTest {
     void groupReferencesAreNormalizedWhileReading() {
         TestConfigs.write(
             groupsFile(),
-            "[[groups]]",
-            "id = \"player\"",
+            "[groups.player]",
             "nodes = [\"codechat.create\"]",
             "",
-            "[[groups]]",
-            "id = \"admin\"",
+            "[groups.admin]",
             "nodes = [\"*\"]",
             "inherits = [\" Player \"]",
             "",
-            "[[tracks]]",
-            "name = \"main\"",
+            "[tracks.main]",
             "groups = [\"PLAYER\", \"admin\"]");
 
         Snapshot snapshot = store().load();
@@ -155,34 +152,30 @@ class JsonPermissionStoreTest {
     }
 
     @Test
-    void duplicateGroupIdentifierKeepsFirstDeclaration() {
+    void groupDeclaredTwiceTakesTheWholeFileAside() {
         TestConfigs.write(
             groupsFile(),
-            "[[groups]]",
-            "id = \"player\"",
+            "[groups.player]",
             "nodes = [\"codechat.create\"]",
             "",
-            "[[groups]]",
-            "id = \"player\"",
+            "[groups.player]",
             "nodes = [\"codechat.channel.*\"]");
 
         Snapshot snapshot = store().load();
 
+        assertTrue(
+            Files.isRegularFile(permissions().resolve("perms-groups.toml.broken")),
+            "toml не разрешает объявить секцию дважды, поэтому файл целиком уходит в .broken");
         assertEquals(
-            1,
-            snapshot.groups()
-                .size());
-        assertEquals(
-            Arrays.asList("codechat.create"),
-            strings(
-                snapshot.group("player")
-                    .get()
-                    .nodes()));
+            Arrays.asList("player", "admin"),
+            new ArrayList<>(
+                snapshot.groups()
+                    .keySet()));
     }
 
     @Test
     void brokenGroupsFileIsSetAsideAndReplacedWithDefaults() {
-        TestConfigs.write(groupsFile(), "[[groups", "id = \"player\"");
+        TestConfigs.write(groupsFile(), "[groups.player", "nodes = []");
 
         Snapshot snapshot = store().load();
 
@@ -212,21 +205,19 @@ class JsonPermissionStoreTest {
     void orderOfGroupsAndOfMetaKeysSurvivesTheWrite() {
         TestConfigs.write(
             groupsFile(),
-            "[[groups]]",
-            "id = \"zeta\"",
+            "[groups.zeta]",
             "nodes = []",
             "",
-            "[groups.meta]",
+            "[groups.zeta.meta]",
             "prefix = \"&7\"",
             "suffix = \"&8\"",
             "rank = \"1\"",
             "",
-            "[[groups]]",
-            "id = \"alpha\"",
+            "# альфу завёл админ, не трогать",
+            "[groups.alpha]",
             "nodes = []",
             "",
-            "[[groups]]",
-            "id = \"middle\"",
+            "[groups.middle]",
             "nodes = []");
 
         JsonPermissionStore store = store();
@@ -240,9 +231,12 @@ class JsonPermissionStoreTest {
                     .keySet()));
         String written = TestConfigs.read(groupsFile());
         assertTrue(
-            written.indexOf("\"zeta\"") < written.indexOf("\"alpha\"")
-                && written.indexOf("\"alpha\"") < written.indexOf("\"middle\""),
+            written.indexOf("[groups.zeta]") < written.indexOf("[groups.alpha]")
+                && written.indexOf("[groups.alpha]") < written.indexOf("[groups.middle]"),
             "группы не тасуются в файле после записи:\n" + written);
+        assertTrue(
+            written.contains("# альфу завёл админ, не трогать"),
+            "строка человека над группой переживает запись:\n" + written);
         assertTrue(
             written.indexOf("prefix") < written.indexOf("suffix")
                 && written.indexOf("suffix") < written.indexOf("rank"),

@@ -339,7 +339,7 @@ class SnapshotCodecTest {
 
         limited.writeGroups(file, decoded.groups(), decoded.tracks(), decoded.quarantine());
 
-        assertEquals(Arrays.asList("codechat.one", "codechat.two", "codechat.three"), textsOf(nodesOf(file, 0)));
+        assertEquals(Arrays.asList("codechat.one", "codechat.two", "codechat.three"), textsOf(nodesOf(file, "vip")));
     }
 
     @Test
@@ -353,7 +353,7 @@ class SnapshotCodecTest {
         codec.writeGroups(file, decoded.groups(), decoded.tracks(), decoded.quarantine());
 
         assertEquals(1, decoded.dropped());
-        assertEquals(Arrays.asList("codechat.one", "codechat..broken"), textsOf(nodesOf(file, 0)));
+        assertEquals(Arrays.asList("codechat.one", "codechat..broken"), textsOf(nodesOf(file, "vip")));
     }
 
     @Test
@@ -384,7 +384,7 @@ class SnapshotCodecTest {
 
         limited.writeGroups(file, decoded.groups(), decoded.tracks(), decoded.quarantine());
 
-        JsonObject written = file.groups.get(0)
+        JsonObject written = file.groups.get("vip")
             .getAsJsonObject()
             .get("meta")
             .getAsJsonObject();
@@ -418,30 +418,29 @@ class SnapshotCodecTest {
     @Test
     void writeLeavesOnlyWhatTheSnapshotHolds() {
         PermsGroupsFile file = fileWithGroups(new JsonArray());
-        file.tracks = tracks(new JsonObject());
+        JsonObject stale = new JsonObject();
+        stale.addProperty("name", "stale");
+        file.tracks = tracks(stale);
 
         codec.writeGroups(file, Arrays.asList(PermsFixtures.group("player", 0)), Arrays.asList());
 
         assertEquals(Arrays.asList("player"), groupIdsOf(file.groups));
-        assertFalse(
-            file.tracks.iterator()
-                .hasNext(),
+        assertTrue(
+            file.tracks.entrySet()
+                .isEmpty(),
             "трек, которого нет в снимке, из файла уходит");
     }
 
-    private static java.util.List<String> groupIdsOf(JsonArray groups) {
+    private static java.util.List<String> groupIdsOf(JsonObject groups) {
         java.util.List<String> ids = new java.util.ArrayList<>();
-        for (JsonElement element : groups) {
-            ids.add(
-                element.getAsJsonObject()
-                    .get("id")
-                    .getAsString());
+        for (java.util.Map.Entry<String, JsonElement> entry : groups.entrySet()) {
+            ids.add(entry.getKey());
         }
         return ids;
     }
 
-    private static JsonArray nodesOf(PermsGroupsFile file, int index) {
-        return file.groups.get(index)
+    private static JsonArray nodesOf(PermsGroupsFile file, String groupId) {
+        return file.groups.get(groupId)
             .getAsJsonObject()
             .get("nodes")
             .getAsJsonArray();
@@ -466,22 +465,34 @@ class SnapshotCodecTest {
 
     private PermsGroupsFile fileWithGroups(JsonArray groups) {
         PermsGroupsFile file = new PermsGroupsFile();
-        file.groups = groups;
+        file.groups = keyed(groups, "id");
         return file;
     }
 
-    private PermsGroupsFile fileWithTracks(JsonArray tracks) {
+    private PermsGroupsFile fileWithTracks(JsonObject tracks) {
         PermsGroupsFile file = new PermsGroupsFile();
         file.tracks = tracks;
         return file;
     }
 
-    private JsonArray tracks(JsonObject... entries) {
+    private JsonObject tracks(JsonObject... entries) {
         JsonArray array = new JsonArray();
         for (JsonObject entry : entries) {
             array.add(entry);
         }
-        return array;
+        return keyed(array, "name");
+    }
+
+    private static JsonObject keyed(JsonArray entries, String field) {
+        JsonObject map = new JsonObject();
+        for (JsonElement element : entries) {
+            JsonObject entry = element.getAsJsonObject();
+            String key = entry.get(field)
+                .getAsString();
+            entry.remove(field);
+            map.add(key, entry);
+        }
+        return map;
     }
 
     private JsonObject fileWithPlayers(JsonArray players) {

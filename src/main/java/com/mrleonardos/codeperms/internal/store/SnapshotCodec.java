@@ -29,7 +29,6 @@ public final class SnapshotCodec {
     public static final String GROUPS = "groups";
     public static final String PLAYERS = "players";
 
-    public static final String ID = "id";
     public static final String UUID_FIELD = "uuid";
     public static final String NAME = "name";
     public static final String DISPLAY_NAME = "displayName";
@@ -92,29 +91,30 @@ public final class SnapshotCodec {
         Tally tally = new Tally();
         Quarantine quarantine = new Quarantine();
 
-        Set<String> knownGroups = new HashSet<>();
-        for (JsonElement element : array(file.groups)) {
-            if (!element.isJsonObject()) {
+        for (Map.Entry<String, JsonElement> entry : object(file.groups).entrySet()) {
+            String id = entry.getKey();
+            if (!entry.getValue()
+                .isJsonObject()) {
                 dropped++;
-                quarantine.groups.add(element);
+                quarantine.groups.put(id, entry.getValue());
                 continue;
             }
             Spares spares = new Spares();
-            GroupRecord group = readGroup(element.getAsJsonObject(), log, tally, spares);
+            GroupRecord group = readGroup(
+                id,
+                entry.getValue()
+                    .getAsJsonObject(),
+                log,
+                tally,
+                spares);
             if (group == null) {
                 dropped++;
-                quarantine.groups.add(element);
-                continue;
-            }
-            if (!knownGroups.add(group.id())) {
-                dropped++;
-                quarantine.groups.add(element);
-                warn(log, "Group {} is declared twice, keeping the first declaration", group.id());
+                quarantine.groups.put(id, entry.getValue());
                 continue;
             }
             if (groups.size() >= limits.groups()) {
                 dropped++;
-                quarantine.groups.add(element);
+                quarantine.groups.put(id, entry.getValue());
                 warn(
                     log,
                     "Group {} is beyond the ceiling of {} groups and stays in the file untouched",
@@ -126,23 +126,22 @@ public final class SnapshotCodec {
             quarantine.keep(group.id(), spares);
         }
 
-        Set<String> knownTracks = new HashSet<>();
-        for (JsonElement element : array(file.tracks)) {
-            if (!element.isJsonObject()) {
+        for (Map.Entry<String, JsonElement> entry : object(file.tracks).entrySet()) {
+            String name = entry.getKey();
+            if (!entry.getValue()
+                .isJsonObject()) {
                 dropped++;
-                quarantine.tracks.add(element);
+                quarantine.tracks.put(name, entry.getValue());
                 continue;
             }
-            TrackRecord track = readTrack(element.getAsJsonObject(), log);
+            TrackRecord track = readTrack(
+                name,
+                entry.getValue()
+                    .getAsJsonObject(),
+                log);
             if (track == null) {
                 dropped++;
-                quarantine.tracks.add(element);
-                continue;
-            }
-            if (!knownTracks.add(track.name())) {
-                dropped++;
-                quarantine.tracks.add(element);
-                warn(log, "Track {} is declared twice, keeping the first declaration", track.name());
+                quarantine.tracks.put(name, entry.getValue());
                 continue;
             }
             tracks.add(track);
@@ -187,8 +186,7 @@ public final class SnapshotCodec {
         return new DecodedPlayers(players, dropped + tally.total(), quarantine);
     }
 
-    private GroupRecord readGroup(JsonObject data, Logger log, Tally tally, Spares spares) {
-        String id = text(data.get(ID));
+    private GroupRecord readGroup(String id, JsonObject data, Logger log, Tally tally, Spares spares) {
         if (!limits.acceptsGroupId(id)) {
             warn(log, "Group id {} does not fit the ceiling of {} characters", id, limits.groupIdLength());
             return null;
@@ -206,8 +204,7 @@ public final class SnapshotCodec {
         }
     }
 
-    private TrackRecord readTrack(JsonObject data, Logger log) {
-        String name = text(data.get(NAME));
+    private TrackRecord readTrack(String name, JsonObject data, Logger log) {
         List<String> groups = groupIds(data.get(GROUPS), log);
         try {
             if (!limits.acceptsTrackName(name)) {
@@ -418,44 +415,40 @@ public final class SnapshotCodec {
         return data;
     }
 
-    private JsonArray encodeGroups(List<GroupRecord> groups, Quarantine quarantine) {
-        JsonArray array = new JsonArray();
+    private JsonObject encodeGroups(List<GroupRecord> groups, Quarantine quarantine) {
+        JsonObject encoded = new JsonObject();
         for (GroupRecord group : groups) {
             JsonObject data = new JsonObject();
-            data.addProperty(ID, group.id());
             if (!group.displayName()
                 .equals(group.id())) {
                 data.addProperty(DISPLAY_NAME, group.displayName());
             }
-            if (group.weight() != 0) {
-                data.addProperty(WEIGHT, Integer.valueOf(group.weight()));
-            }
-            if (!group.inherits()
-                .isEmpty()) {
-                data.add(INHERITS, strings(group.inherits()));
-            }
+            data.addProperty(WEIGHT, Integer.valueOf(group.weight()));
+            data.add(INHERITS, strings(group.inherits()));
             putNodes(data, group.nodes(), quarantine, group.id());
+            if (!data.has(NODES)) {
+                data.add(NODES, new JsonArray());
+            }
             putMeta(data, group.meta(), quarantine, group.id());
-            array.add(data);
+            encoded.add(group.id(), data);
         }
-        for (JsonElement held : quarantine.groups) {
-            array.add(held);
+        for (Map.Entry<String, JsonElement> held : quarantine.groups.entrySet()) {
+            encoded.add(held.getKey(), held.getValue());
         }
-        return array;
+        return encoded;
     }
 
-    private JsonArray encodeTracks(List<TrackRecord> tracks, Quarantine quarantine) {
-        JsonArray array = new JsonArray();
+    private JsonObject encodeTracks(List<TrackRecord> tracks, Quarantine quarantine) {
+        JsonObject encoded = new JsonObject();
         for (TrackRecord track : tracks) {
             JsonObject data = new JsonObject();
-            data.addProperty(NAME, track.name());
             data.add(GROUPS, strings(track.groups()));
-            array.add(data);
+            encoded.add(track.name(), data);
         }
-        for (JsonElement held : quarantine.tracks) {
-            array.add(held);
+        for (Map.Entry<String, JsonElement> held : quarantine.tracks.entrySet()) {
+            encoded.add(held.getKey(), held.getValue());
         }
-        return array;
+        return encoded;
     }
 
     private JsonArray encodePlayers(List<UserRecord> players, Quarantine quarantine) {
@@ -576,6 +569,10 @@ public final class SnapshotCodec {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    private static JsonObject object(JsonObject data) {
+        return data == null ? new JsonObject() : data;
+    }
+
     private static Iterable<JsonElement> array(JsonElement element) {
         if (element == null || element.isJsonNull()) {
             return Collections.emptyList();
@@ -686,8 +683,8 @@ public final class SnapshotCodec {
 
         private static final Quarantine EMPTY = new Quarantine();
 
-        private final List<JsonElement> groups = new ArrayList<>();
-        private final List<JsonElement> tracks = new ArrayList<>();
+        private final Map<String, JsonElement> groups = new LinkedHashMap<>();
+        private final Map<String, JsonElement> tracks = new LinkedHashMap<>();
         private final List<JsonElement> players = new ArrayList<>();
         private final Map<String, JsonArray> nodes = new LinkedHashMap<>();
         private final Map<String, JsonObject> meta = new LinkedHashMap<>();
