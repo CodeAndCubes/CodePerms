@@ -209,6 +209,47 @@ class JsonPermissionStoreTest {
     }
 
     @Test
+    void orderOfGroupsAndOfMetaKeysSurvivesTheWrite() {
+        TestConfigs.write(
+            groupsFile(),
+            "[[groups]]",
+            "id = \"zeta\"",
+            "nodes = []",
+            "",
+            "[groups.meta]",
+            "prefix = \"&7\"",
+            "suffix = \"&8\"",
+            "rank = \"1\"",
+            "",
+            "[[groups]]",
+            "id = \"alpha\"",
+            "nodes = []",
+            "",
+            "[[groups]]",
+            "id = \"middle\"",
+            "nodes = []");
+
+        JsonPermissionStore store = store();
+        Snapshot loaded = store.load();
+        store.save(loaded);
+
+        assertEquals(
+            Arrays.asList("zeta", "alpha", "middle"),
+            new ArrayList<>(
+                loaded.groups()
+                    .keySet()));
+        String written = TestConfigs.read(groupsFile());
+        assertTrue(
+            written.indexOf("\"zeta\"") < written.indexOf("\"alpha\"")
+                && written.indexOf("\"alpha\"") < written.indexOf("\"middle\""),
+            "группы не тасуются в файле после записи:\n" + written);
+        assertTrue(
+            written.indexOf("prefix") < written.indexOf("suffix")
+                && written.indexOf("suffix") < written.indexOf("rank"),
+            "ключи меты не тасуются в файле после записи:\n" + written);
+    }
+
+    @Test
     void applyPatchesStateAndKeepsRevisionMoving() {
         JsonPermissionStore store = store();
         store.load();

@@ -10,8 +10,6 @@ import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -201,7 +199,7 @@ public final class CoreGroupsImporter {
 
     private List<GroupRecord> readGroups(CoreGroupsView view, Counts counts) {
         List<GroupRecord> groups = new ArrayList<>();
-        for (Map.Entry<String, JsonElement> entry : inFileOrder(object(view.groups))) {
+        for (Map.Entry<String, JsonElement> entry : object(view.groups).entrySet()) {
             if (groups.size() >= limits.groups()) {
                 counts.groupsSkipped++;
                 continue;
@@ -225,65 +223,6 @@ public final class CoreGroupsImporter {
             counts.groups++;
         }
         return groups;
-    }
-
-    /**
-     * Записи секции в том порядке, в каком их видит человек в файле.
-     *
-     * <p>
-     * Весов в файле ядра нет, и группа получает вес по месту в нём. Разбор toml складывает содержимое
-     * секции в обычную карту и порядок теряет, поэтому заголовки читаются из самого текста. Группа, чьего
-     * заголовка там нет, встаёт после найденных.
-     */
-    private List<Map.Entry<String, JsonElement>> inFileOrder(JsonObject groups) {
-        List<String> order = headers();
-        List<Map.Entry<String, JsonElement>> named = new ArrayList<>();
-        List<Map.Entry<String, JsonElement>> rest = new ArrayList<>();
-        for (Map.Entry<String, JsonElement> entry : groups.entrySet()) {
-            (order.contains(entry.getKey()) ? named : rest).add(entry);
-        }
-        Collections.sort(named, new Comparator<Map.Entry<String, JsonElement>>() {
-
-            @Override
-            public int compare(Map.Entry<String, JsonElement> left, Map.Entry<String, JsonElement> right) {
-                return Integer.compare(order.indexOf(left.getKey()), order.indexOf(right.getKey()));
-            }
-        });
-        named.addAll(rest);
-        return named;
-    }
-
-    private List<String> headers() {
-        List<String> order = new ArrayList<>();
-        List<String> lines;
-        try {
-            lines = Files.readAllLines(coreFile, StandardCharsets.UTF_8);
-        } catch (IOException failure) {
-            return order;
-        }
-        String prefix = "[" + GROUPS_FIELD + ".";
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (!trimmed.startsWith(prefix) || !trimmed.endsWith("]")) {
-                continue;
-            }
-            String id = trimmed.substring(prefix.length(), trimmed.length() - 1);
-            int dot = id.indexOf('.');
-            if (dot >= 0) {
-                id = id.substring(0, dot);
-            }
-            id = unquote(id.trim());
-            if (!id.isEmpty() && !order.contains(id)) {
-                order.add(id);
-            }
-        }
-        return order;
-    }
-
-    private static String unquote(String value) {
-        boolean quoted = value.length() > 1
-            && (value.startsWith("\"") && value.endsWith("\"") || value.startsWith("'") && value.endsWith("'"));
-        return quoted ? value.substring(1, value.length() - 1) : value;
     }
 
     private List<UserRecord> readPlayers(CoreGroupsView view, Counts counts) {

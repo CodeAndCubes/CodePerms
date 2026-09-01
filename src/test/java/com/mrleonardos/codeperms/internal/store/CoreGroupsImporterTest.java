@@ -84,7 +84,7 @@ class CoreGroupsImporterTest {
     }
 
     @Test
-    void weightsFollowTheOrderOfHeadersInTheFile() {
+    void weightsFollowTheOrderOfGroupsInTheFile() {
         writeSource(
             "[groups.zeta]",
             "nodes = []",
@@ -345,6 +345,9 @@ class CoreGroupsImporterTest {
         String written = TestConfigs.read(source());
         assertTrue(written.contains("# файл завёл админ"), "строки человека остаются на месте");
         assertTrue(written.contains("codechat.create"), "значения секций остаются на месте");
+        assertTrue(
+            written.indexOf("[groups.player]") < written.indexOf("[groups.admin]"),
+            "порядок групп в чужом файле мод не тасует: " + written);
         assertTrue(written.contains(CoreGroupsImporter.MARKER_HASH));
     }
 
