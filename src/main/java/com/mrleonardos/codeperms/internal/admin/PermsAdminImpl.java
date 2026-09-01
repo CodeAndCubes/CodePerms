@@ -528,7 +528,7 @@ public final class PermsAdminImpl implements PermsAdmin {
     private static OperationResult inUse(PendingChange pending, String groupId, String field) {
         return pending.reject(
             OperationResult.Failure.IN_USE,
-            "Group " + groupId + " is named by " + field + " in config.json, change the setting first");
+            "Group " + groupId + " is named by " + field + " in config.toml, change the setting first");
     }
 
     private static ChangeEvent[] relink(PendingChange pending, String from, String to, ChangeCause cause) {

@@ -34,7 +34,8 @@ public interface PermsAdmin {
      * место в треках. Трек, в котором она была единственной, удаляется тоже.
      *
      * <p>
-     * Группа, названная в {@code defaultGroup} или {@code opGroup} файла {@code config.json}, не
+     * Группа, названная в {@code defaultGroup} или {@code opGroup} секции {@code [permissions]} главного
+     * файла, не
      * удаляется: снимок разъехался бы с настройками. Отказ приходит кодом {@code IN_USE}.
      */
     OperationResult deleteGroup(String id, ChangeCause cause, String author);

@@ -24,9 +24,9 @@ import com.mrleonardos.codeperms.api.store.PermissionStore;
  *
  * <p>
  * Провайдеров контекстов и хранилища регистрируют на инициализации своего мода: к первому использованию
- * прав всё должно быть на местах. {@link #admin()} и {@link #events()} работают сразу после того, как
- * CodePerms соберёт свою реализацию, обращения к ним раньше инициализации CodePerms дают понятную
- * ошибку, а не падение.
+ * прав всё должно быть на местах. {@link #admin()} и {@link #events()} работают после того, как реестр
+ * ролей отдал права CodePerms и тот собрал свою реализацию, то есть с конца постинициализации.
+ * Обращение раньше даёт понятную ошибку, а не падение.
  *
  * <p>
  * Политика реестров одна на всю линейку: имя занимается один раз, а на старте сервера регистрация
@@ -73,8 +73,8 @@ public final class PermsApi {
     }
 
     /**
-     * Зарегистрировать хранилище. Активным становится то, чьё имя указано в настройке
-     * {@code storage.provider}.
+     * Зарегистрировать хранилище. Активным становится то, чьё имя указано в ключе {@code provider}
+     * секции {@code [storage]} главного файла.
      *
      * @throws IllegalArgumentException если имя уже занято другим провайдером
      * @throws IllegalStateException    если реестр уже закрыт стартом сервера
@@ -92,7 +92,7 @@ public final class PermsApi {
         STORES.put(store.id(), store);
     }
 
-    /** Хранилище по имени из настройки {@code storage.provider}. */
+    /** Хранилище по имени из главного файла. */
     public static synchronized Optional<PermissionStore> store(String id) {
         return Optional.ofNullable(STORES.get(id));
     }
