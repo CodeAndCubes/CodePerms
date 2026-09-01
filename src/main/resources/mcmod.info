@@ -1,0 +1,21 @@
+{
+	"modListVersion": 2,
+	"modList": [{
+		"modid": "${modId}",
+		"name": "${modName}",
+		"description": "Права доступа группами, треками и контекстами: наследование, временные выдачи, хранение в json и команды /perms.",
+		"version": "${modVersion}",
+		"mcversion": "${minecraftVersion}",
+		"url": "",
+		"updateUrl": "",
+		"authorList": ["MrLeonardos"],
+		"credits": "",
+		"logoFile": "",
+		"screenshots": [],
+		"parent": "",
+		"requiredMods": ["codecore"],
+		"dependencies": ["codecore"],
+		"dependants": [],
+		"useDependencyInformation": true
+	}]
+}

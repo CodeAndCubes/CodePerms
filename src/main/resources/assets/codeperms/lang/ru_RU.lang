@@ -1,0 +1,83 @@
+codeperms.command.usage=/perms
+codeperms.command.usage.me=/perms me
+codeperms.command.usage.group=/perms group <list|info|create|delete|rename|copy|setweight|parent|node|meta>
+codeperms.command.usage.player=/perms player <info|setgroup|addgroup|rmgroup|node|meta|cleanup>
+codeperms.command.usage.track=/perms track <list|info|promote|demote>
+codeperms.command.usage.import=/perms import [--dry-run] [--force]
+codeperms.command.usage.export=/perms export
+codeperms.command.usage.reload=/perms reload
+codeperms.command.usage.debug=/perms debug <игрок> <нода>
+
+codeperms.message.me.header=Права игрока %s
+codeperms.message.me.group.permanent=%s (бессрочно)
+codeperms.message.me.group.temporary=%s (истечёт через %s)
+codeperms.message.me.no_groups=Групп нет
+codeperms.message.me.meta=Мета: %s = %s
+codeperms.message.me.no_meta=Личной мета нет
+
+codeperms.message.group.list=Группы: %s
+codeperms.message.group.empty=Групп нет
+codeperms.message.group.info.header=Группа %s (%s), вес %s
+codeperms.message.group.info.parents=Родители: %s
+codeperms.message.group.info.nodes=Ноды: %s
+codeperms.message.group.info.meta=Мета: %s
+codeperms.message.group.created=Группа %s создана
+codeperms.message.group.deleted=Группа %s удалена
+codeperms.message.group.renamed=Группа %s теперь называется %s
+codeperms.message.group.copied=Группа %s скопирована в %s
+codeperms.message.group.weight=Вес группы %s теперь %s
+codeperms.message.group.parent.added=Группе %s добавлен родитель %s
+codeperms.message.group.parent.removed=У группы %s убран родитель %s
+codeperms.message.group.node.set=Группе %s записана нода %s
+codeperms.message.group.node.removed=У группы %s снята нода %s
+codeperms.message.group.meta.set=Группе %s записано %s = %s
+codeperms.message.group.meta.removed=У группы %s убрано %s
+
+codeperms.message.player.info.header=Игрок %s (%s)
+codeperms.message.player.info.primary=Основная группа: %s
+codeperms.message.player.info.groups=Группы: %s
+codeperms.message.player.info.nodes=Личные ноды: %s
+codeperms.message.player.info.meta=Мета: %s
+codeperms.message.player.group.set=Игроку %s назначена группа %s
+codeperms.message.player.group.cleared=С игрока %s снято назначение основной группы
+codeperms.message.player.group.added=Игроку %s выдана группа %s
+codeperms.message.player.group.added.temporary=Игроку %s выдана группа %s на %s
+codeperms.message.player.group.removed=У игрока %s снята группа %s
+codeperms.message.player.node.set=Игроку %s записана нода %s
+codeperms.message.player.node.removed=У игрока %s снята нода %s
+codeperms.message.player.meta.set=Игроку %s записано %s = %s
+codeperms.message.player.meta.removed=У игрока %s убрано %s
+codeperms.message.player.cleaned=У игрока %s снято истёкших записей: %s
+
+codeperms.message.track.list=Треки: %s
+codeperms.message.track.empty=Треков нет
+codeperms.message.track.info=Трек %s: %s
+codeperms.message.track.unknown=Трека %s не существует
+codeperms.message.track.promoted=Игрок %s повышен до %s
+codeperms.message.track.demoted=Игрок %s понижен до %s
+codeperms.message.track.not_member=Игрок %s не стоит ни в одной группе трека %s
+codeperms.message.track.top=Игрок %s уже на вершине трека %s
+codeperms.message.track.bottom=Игрок %s уже в самом низу трека %s
+
+codeperms.message.import.done=Импорт завершён: %s
+codeperms.message.import.dry=Пробный прогон без записи: %s
+codeperms.message.import.changed=Файл ядра менялся после прошлого импорта, повторите с --force
+codeperms.message.export.done=Экспорт записан: %s
+codeperms.message.reload.done=Файлы прав перечитаны: %s
+
+codeperms.message.debug.header=Проверка ноды %s для %s
+codeperms.message.debug.row.allow=%s: %s, совпало контекстов: %s, точность: %s, разрешает
+codeperms.message.debug.row.deny=%s: %s, совпало контекстов: %s, точность: %s, запрещает
+codeperms.message.debug.winner.allow=Победитель: источник %s с нодой %s, право разрешено
+codeperms.message.debug.winner.deny=Победитель: источник %s с нодой %s, право запрещено
+codeperms.message.debug.empty=Подходящих правил нет, право закрыто по умолчанию
+
+codeperms.message.failure.not_found=Не найдено: %s
+codeperms.message.failure.already_exists=Уже существует: %s
+codeperms.message.failure.limit_reached=Потолок хранилища: %s
+codeperms.message.failure.invalid_value=Неподходящее значение: %s
+codeperms.message.failure.inheritance_cycle=Цикл наследования через %s
+codeperms.message.failure.in_use=На группу %s смотрит настройка в config.json, сначала поправьте её
+codeperms.message.failure.timeout=Главный поток не взял правку вовремя, она снята с очереди: повторите
+codeperms.message.failure.unsupported=Такая операция недоступна
+codeperms.message.failure.provider=Хранилище не смогло записать правку, работаем на последнем снимке

@@ -1,0 +1,83 @@
+codeperms.command.usage=/perms
+codeperms.command.usage.me=/perms me
+codeperms.command.usage.group=/perms group <list|info|create|delete|rename|copy|setweight|parent|node|meta>
+codeperms.command.usage.player=/perms player <info|setgroup|addgroup|rmgroup|node|meta|cleanup>
+codeperms.command.usage.track=/perms track <list|info|promote|demote>
+codeperms.command.usage.import=/perms import [--dry-run] [--force]
+codeperms.command.usage.export=/perms export
+codeperms.command.usage.reload=/perms reload
+codeperms.command.usage.debug=/perms debug <player> <node>
+
+codeperms.message.me.header=Permissions of %s
+codeperms.message.me.group.permanent=%s (permanent)
+codeperms.message.me.group.temporary=%s (expires in %s)
+codeperms.message.me.no_groups=No groups
+codeperms.message.me.meta=Meta: %s = %s
+codeperms.message.me.no_meta=No personal meta
+
+codeperms.message.group.list=Groups: %s
+codeperms.message.group.empty=No groups
+codeperms.message.group.info.header=Group %s (%s), weight %s
+codeperms.message.group.info.parents=Parents: %s
+codeperms.message.group.info.nodes=Nodes: %s
+codeperms.message.group.info.meta=Meta: %s
+codeperms.message.group.created=Group %s created
+codeperms.message.group.deleted=Group %s deleted
+codeperms.message.group.renamed=Group %s is now called %s
+codeperms.message.group.copied=Group %s copied to %s
+codeperms.message.group.weight=Weight of %s is now %s
+codeperms.message.group.parent.added=Group %s gained parent %s
+codeperms.message.group.parent.removed=Group %s lost parent %s
+codeperms.message.group.node.set=Group %s now holds node %s
+codeperms.message.group.node.removed=Group %s no longer holds node %s
+codeperms.message.group.meta.set=%s now holds %s = %s
+codeperms.message.group.meta.removed=%s no longer holds %s
+
+codeperms.message.player.info.header=Player %s (%s)
+codeperms.message.player.info.primary=Primary group: %s
+codeperms.message.player.info.groups=Groups: %s
+codeperms.message.player.info.nodes=Personal nodes: %s
+codeperms.message.player.info.meta=Meta: %s
+codeperms.message.player.group.set=Player %s now holds %s as primary group
+codeperms.message.player.group.cleared=Primary group of %s is cleared
+codeperms.message.player.group.added=Player %s granted group %s
+codeperms.message.player.group.added.temporary=Player %s granted group %s for %s
+codeperms.message.player.group.removed=Player %s lost group %s
+codeperms.message.player.node.set=Player %s now holds node %s
+codeperms.message.player.node.removed=Player %s no longer holds node %s
+codeperms.message.player.meta.set=%s now holds %s = %s
+codeperms.message.player.meta.removed=%s no longer holds %s
+codeperms.message.player.cleaned=Expired entries taken from %s: %s
+
+codeperms.message.track.list=Tracks: %s
+codeperms.message.track.empty=No tracks
+codeperms.message.track.info=Track %s: %s
+codeperms.message.track.unknown=No track named %s
+codeperms.message.track.promoted=%s promoted to %s
+codeperms.message.track.demoted=%s demoted to %s
+codeperms.message.track.not_member=%s holds no group of track %s
+codeperms.message.track.top=%s already stands on top of track %s
+codeperms.message.track.bottom=%s already stands at the bottom of track %s
+
+codeperms.message.import.done=Import finished: %s
+codeperms.message.import.dry=Dry run without writing: %s
+codeperms.message.import.changed=The core file changed after the last import, repeat with --force
+codeperms.message.export.done=Export written: %s
+codeperms.message.reload.done=Permission files reloaded: %s
+
+codeperms.message.debug.header=Check of node %s for %s
+codeperms.message.debug.row.allow=%s: %s, matched contexts: %s, specificity: %s, allows
+codeperms.message.debug.row.deny=%s: %s, matched contexts: %s, specificity: %s, denies
+codeperms.message.debug.winner.allow=Winner: source %s with node %s, permission granted
+codeperms.message.debug.winner.deny=Winner: source %s with node %s, permission denied
+codeperms.message.debug.empty=No rule applies, the permission stays closed
+
+codeperms.message.failure.not_found=Not found: %s
+codeperms.message.failure.already_exists=Already exists: %s
+codeperms.message.failure.limit_reached=Storage ceiling: %s
+codeperms.message.failure.invalid_value=Unfitting value: %s
+codeperms.message.failure.inheritance_cycle=Inheritance cycle through %s
+codeperms.message.failure.in_use=A setting in config.json names the group %s, change the setting first
+codeperms.message.failure.timeout=The main thread did not take the change in time, it was dropped: try again
+codeperms.message.failure.unsupported=This operation is unavailable
+codeperms.message.failure.provider=The store failed to apply the change, working on the last snapshot
