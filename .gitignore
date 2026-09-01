@@ -14,3 +14,4 @@ run/
 openspec/
 *.md
 !README.md
+logs/
