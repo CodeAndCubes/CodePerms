@@ -1,0 +1,42 @@
+package com.mrleonardos.codeperms.api.store;
+
+import com.mrleonardos.codeperms.api.model.Snapshot;
+
+/**
+ * Хранилище прав: точка расширения для чужих провайдеров.
+ *
+ * <p>
+ * Встроенный провайдер {@code json} держит три файла. Чужой мод регистрирует свою реализацию в
+ * {@code PermsApi}, а выбирается он по имени из настройки {@code storage.provider}. Провайдер работает
+ * с готовыми субъектами и не знает, откуда пришла правка.
+ *
+ * <p>
+ * Сбой провайдера не роняет сервер: модель продолжает работать на последнем удачном снимке, причина
+ * попадает в лог.
+ */
+public interface PermissionStore {
+
+    /** Имя провайдера, по нему его выбирает настройка {@code storage.provider}. */
+    String id();
+
+    /** Прочитать хранилище целиком. Вызывается на старте сервера и по {@code /perms reload}. */
+    Snapshot load();
+
+    /**
+     * Применить пачку правок. Частичного применения нет: провайдер либо записывает всё, либо отвечает
+     * отказом и оставляет хранилище в прежнем состоянии.
+     */
+    OperationResult apply(ChangeBatch batch);
+
+    /**
+     * Записать снимок целиком.
+     *
+     * <p>
+     * Провайдеру, который ведёт учёт субъектов по {@link #apply}, полная выгрузка не нужна, поэтому
+     * по умолчанию метод отвечает отказом {@code UNSUPPORTED}. Провайдеры с полной выгрузкой, например
+     * мосты в базы данных, переопределяют его.
+     */
+    default OperationResult save(Snapshot snapshot) {
+        return OperationResult.failure(OperationResult.Failure.UNSUPPORTED, "save is not supported by " + id());
+    }
+}
