@@ -18,6 +18,7 @@ import com.mrleonardos.codeperms.api.store.Change;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
+import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 
 public final class JsonPermissionStore implements PermissionStore {
@@ -25,17 +26,19 @@ public final class JsonPermissionStore implements PermissionStore {
     public static final String ID = "json";
 
     private final ConfigFile<PermsSettings> settings;
-    private final JsonGroupsStore groups;
-    private final JsonPlayersStore players;
+    private final MainSettings main;
+    private final GroupsStore groups;
+    private final PlayersStore players;
     private final Logger log;
 
     private volatile Snapshot state;
 
-    public JsonPermissionStore(ConfigFile<PermsSettings> settings, ConfigFile<JsonObject> groupsFile,
-        ConfigFile<JsonObject> playersFile, PermsLimits limits, Logger log) {
+    public JsonPermissionStore(ConfigFile<PermsSettings> settings, MainSettings main,
+        ConfigFile<PermsGroupsFile> groupsFile, ConfigFile<JsonObject> playersFile, PermsLimits limits, Logger log) {
         this.settings = settings;
-        this.groups = new JsonGroupsStore(groupsFile, limits, log);
-        this.players = new JsonPlayersStore(playersFile, limits, log);
+        this.main = main;
+        this.groups = new GroupsStore(groupsFile, limits, log);
+        this.players = new PlayersStore(playersFile, limits, log);
         this.log = log;
     }
 
@@ -50,10 +53,10 @@ public final class JsonPermissionStore implements PermissionStore {
         SnapshotCodec.DecodedGroups decodedGroups = groups.load();
         SnapshotCodec.DecodedPlayers decodedPlayers = players.load();
         if (decodedGroups.dropped() > 0) {
-            log.warn("{} record(s) in groups.json are unusable and were skipped", decodedGroups.dropped());
+            log.warn("{} record(s) in perms-groups.toml are unusable and were skipped", decodedGroups.dropped());
         }
         if (decodedPlayers.dropped() > 0) {
-            log.warn("{} record(s) in players.json are unusable and were skipped", decodedPlayers.dropped());
+            log.warn("{} record(s) in perms-players.json are unusable and were skipped", decodedPlayers.dropped());
         }
         Snapshot snapshot = assemble(decodedGroups.groups(), decodedGroups.tracks(), decodedPlayers.players(), 0L);
         state = snapshot;
@@ -84,11 +87,10 @@ public final class JsonPermissionStore implements PermissionStore {
 
     private Snapshot assemble(List<GroupRecord> groupRecords, List<TrackRecord> tracks, List<UserRecord> users,
         long revision) {
-        PermsSettings config = settings.get();
         Snapshot.Builder builder = Snapshot.builder()
             .revision(revision)
-            .defaultGroup(config.defaultGroup)
-            .opGroup(config.opGroup);
+            .defaultGroup(main.defaultGroup())
+            .opGroup(main.opGroup());
         for (GroupRecord group : groupRecords) {
             builder.group(group);
         }

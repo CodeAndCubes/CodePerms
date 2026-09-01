@@ -24,6 +24,7 @@ import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
+import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.engine.ExpiryHeap;
 
@@ -59,24 +60,25 @@ public final class SingleWriterImpl implements SingleWriter {
     private volatile Thread writer;
     private volatile PermissionStore resolved;
 
-    public static SingleWriterImpl create(ConfigService configs, Scheduler scheduler, Logger log) {
+    public static SingleWriterImpl create(ConfigService configs, MainSettings main, Scheduler scheduler, Logger log) {
         ConfigFile<PermsSettings> settings = configs.open(PermsSettings.spec());
         PermsSettings config = settings.get();
         PermsLimits limits = config.ceilings(log);
         PermissionStore builtin = new JsonPermissionStore(
             settings,
-            configs.open(JsonGroupsStore.spec()),
-            configs.open(JsonPlayersStore.spec()),
+            main,
+            configs.open(GroupsStore.spec()),
+            configs.open(PlayersStore.spec()),
             limits,
             log);
         return new SingleWriterImpl(
             builtin,
-            config.provider(),
+            main.provider(),
             PermsApi::store,
             scheduler,
             log,
             System::currentTimeMillis,
-            config.autosaveTicks(),
+            main.autosaveTicks(),
             config.scanTicks());
     }
 

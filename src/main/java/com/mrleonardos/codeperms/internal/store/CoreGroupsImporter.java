@@ -1,34 +1,35 @@
 package com.mrleonardos.codeperms.internal.store;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import org.apache.logging.log4j.Logger;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
+import com.mrleonardos.codecore.api.config.ConfigFile;
+import com.mrleonardos.codecore.api.config.ConfigRoles;
+import com.mrleonardos.codecore.api.config.ConfigScope;
 import com.mrleonardos.codecore.api.config.ConfigService;
+import com.mrleonardos.codecore.api.config.ConfigSpec;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.ChangeCause;
 import com.mrleonardos.codeperms.api.model.GroupRecord;
@@ -38,41 +39,45 @@ import com.mrleonardos.codeperms.api.model.UserRecord;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 
-public final class CoreJsonImporter {
+public final class CoreGroupsImporter {
 
     public static final String MARKER_FIELD = "codepermsImport";
     public static final String MARKER_HASH = "sha256";
     public static final String MARKER_TIME = "importedAt";
-    public static final String CORE_FILE = "permissions.json";
 
-    private static final String DEFAULT_GROUP_FIELD = "defaultGroup";
-    private static final String OP_GROUP_FIELD = "opGroup";
+    public static final String CORE_MODID = "codecore";
+    public static final String CORE_NAME = "groups";
+    public static final String CORE_FILE = "core-groups.toml";
+
     private static final String GROUPS_FIELD = "groups";
-    private static final String PLAYERS_FIELD = "players";
     private static final String INHERITS_FIELD = "inherits";
     private static final String NODES_FIELD = "nodes";
     private static final String META_FIELD = "meta";
     private static final String GROUP_FIELD = "group";
 
-    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping()
-        .setPrettyPrinting()
-        .create();
-
+    private final ConfigService configs;
     private final Path coreFile;
     private final Path exportDirectory;
     private final PermsLimits limits;
     private final Logger log;
 
-    public CoreJsonImporter(Path coreFile, Path exportDirectory, PermsLimits limits, Logger log) {
-        this.coreFile = coreFile;
-        this.exportDirectory = exportDirectory;
+    private ConfigFile<CoreGroupsView> file;
+
+    public CoreGroupsImporter(ConfigService configs, PermsLimits limits, Logger log) {
+        this.configs = configs;
+        this.coreFile = configs.directory(ConfigRoles.PERMISSIONS)
+            .resolve(CORE_FILE);
+        this.exportDirectory = configs.directory(ConfigRoles.PERMISSIONS)
+            .resolve(PermsSettings.EXPORT_DIRECTORY);
         this.limits = limits;
         this.log = log;
     }
 
-    public static Path coreFileOf(ConfigService configs) {
-        return configs.directory("codecore")
-            .resolve(CORE_FILE);
+    public static ConfigSpec<CoreGroupsView> spec() {
+        return ConfigSpec.of(CORE_MODID, CORE_NAME, CoreGroupsView.class)
+            .role(ConfigRoles.PERMISSIONS)
+            .scope(ConfigScope.SETTINGS)
+            .build();
     }
 
     public Path coreFile() {
@@ -87,48 +92,34 @@ public final class CoreJsonImporter {
         if (!available()) {
             return false;
         }
-        byte[] raw = read();
-        JsonObject data = raw == null ? null : parse(raw);
-        if (data == null) {
-            return true;
-        }
-        return markerHash(data) == null;
+        CoreGroupsView view = read();
+        return view == null || view.codepermsImport == null;
     }
 
     public Result run(Snapshot current, boolean force, boolean dryRun) {
         if (!available()) {
             return Result.of(Status.SOURCE_MISSING, new Counts(), dryRun, null);
         }
-        byte[] raw = read();
-        if (raw == null) {
-            return Result.of(Status.SOURCE_MISSING, new Counts(), dryRun, null);
-        }
-        JsonObject data = parse(raw);
-        if (data == null) {
+        CoreGroupsView view = read();
+        if (view == null) {
             return Result.of(Status.SOURCE_UNREADABLE, new Counts(), dryRun, null);
         }
-        String imported = markerHash(data);
-        data.remove(MARKER_FIELD);
-        String hash = hashOf(canonical(data));
+        String imported = markerHash(view);
+        String hash = hashOf(canonical(view));
         if (imported != null && !imported.equals(hash) && !force) {
             return Result.of(Status.SOURCE_CHANGED, new Counts(), dryRun, hash);
         }
 
         Counts counts = new Counts();
-        List<GroupRecord> groups = readGroups(data, counts);
-        List<UserRecord> players = readPlayers(data, counts);
+        List<GroupRecord> groups = readGroups(view, counts);
+        List<UserRecord> players = readPlayers(view, counts);
         if (groups.isEmpty() && players.isEmpty()) {
-            return new Result(Status.NOTHING_TO_DO, counts, dryRun, hash, null, null, data);
+            return new Result(Status.NOTHING_TO_DO, counts, dryRun, hash, null, null);
         }
 
-        Snapshot next = merge(
-            current,
-            groups,
-            players,
-            text(data.get(DEFAULT_GROUP_FIELD)),
-            text(data.get(OP_GROUP_FIELD)));
+        Snapshot next = merge(current, groups, players);
         ChangeBatch batch = batchOf(groups, players);
-        return new Result(Status.IMPORTED, counts, dryRun, hash, next, batch, data);
+        return new Result(Status.IMPORTED, counts, dryRun, hash, next, batch);
     }
 
     /**
@@ -138,34 +129,79 @@ public final class CoreJsonImporter {
      * @return удалось ли записать маркер
      */
     public boolean mark(Result result) {
-        if (result.data == null || result.hash() == null) {
+        if (result.hash() == null || file == null || !file.loaded()) {
             return false;
         }
-        return writeMarker(result.data, result.hash());
+        CoreGroupsView view = file.get();
+        JsonObject marker = new JsonObject();
+        marker.addProperty(MARKER_HASH, result.hash());
+        marker.addProperty(MARKER_TIME, Long.valueOf(System.currentTimeMillis()));
+        view.codepermsImport = marker;
+        file.save();
+        return true;
     }
 
     public Result export(Snapshot snapshot) {
         Counts counts = new Counts();
-        JsonObject data = new JsonObject();
-        data.addProperty(DEFAULT_GROUP_FIELD, snapshot.defaultGroup());
-        data.addProperty(OP_GROUP_FIELD, snapshot.opGroup());
-        data.add(GROUPS_FIELD, groupsOf(snapshot, counts));
-        data.add(PLAYERS_FIELD, playersOf(snapshot, counts));
+        CoreGroupsView view = new CoreGroupsView();
+        view.groups = groupsOf(snapshot, counts);
+        view.players = playersOf(snapshot, counts);
         Path target = exportDirectory.resolve(CORE_FILE);
         try {
             Files.createDirectories(exportDirectory);
-            write(target, data);
+            write(target, view);
         } catch (IOException failure) {
             log.error("Export to {} failed: {}", target, failure.toString());
             return Result.of(Status.EXPORT_FAILED, counts, false, null);
         }
-        return new Result(Status.EXPORTED, counts, false, null, null, null, null);
+        return new Result(Status.EXPORTED, counts, false, null, null, null);
     }
 
-    private List<GroupRecord> readGroups(JsonObject data, Counts counts) {
+    private CoreGroupsView read() {
+        FileTime before = modified(coreFile);
+        ConfigFile<CoreGroupsView> opened = opened();
+        FileTime after = modified(coreFile);
+        if (before != null && !before.equals(after)) {
+            restore();
+            return null;
+        }
+        return opened.loaded() ? opened.get() : null;
+    }
+
+    private ConfigFile<CoreGroupsView> opened() {
+        if (file == null) {
+            file = configs.open(spec());
+            return file;
+        }
+        file.reload();
+        return file;
+    }
+
+    private void restore() {
+        Path broken = coreFile.resolveSibling(coreFile.getFileName() + ".broken");
+        if (!Files.isRegularFile(broken)) {
+            log.error("Core permission file {} was replaced while it was read", coreFile);
+            return;
+        }
+        try {
+            Files.move(broken, coreFile, StandardCopyOption.REPLACE_EXISTING);
+            log.warn("Core permission file {} is not readable, it was left as it was", coreFile);
+        } catch (IOException failure) {
+            log.error("Core permission file {} was not put back: {}", coreFile, failure.toString());
+        }
+    }
+
+    private static FileTime modified(Path path) {
+        try {
+            return Files.getLastModifiedTime(path);
+        } catch (IOException absent) {
+            return null;
+        }
+    }
+
+    private List<GroupRecord> readGroups(CoreGroupsView view, Counts counts) {
         List<GroupRecord> groups = new ArrayList<>();
-        JsonObject source = object(data.get(GROUPS_FIELD));
-        for (Map.Entry<String, JsonElement> entry : source.entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : inFileOrder(object(view.groups))) {
             if (groups.size() >= limits.groups()) {
                 counts.groupsSkipped++;
                 continue;
@@ -191,10 +227,68 @@ public final class CoreJsonImporter {
         return groups;
     }
 
-    private List<UserRecord> readPlayers(JsonObject data, Counts counts) {
+    /**
+     * Записи секции в том порядке, в каком их видит человек в файле.
+     *
+     * <p>
+     * Весов в файле ядра нет, и группа получает вес по месту в нём. Разбор toml складывает содержимое
+     * секции в обычную карту и порядок теряет, поэтому заголовки читаются из самого текста. Группа, чьего
+     * заголовка там нет, встаёт после найденных.
+     */
+    private List<Map.Entry<String, JsonElement>> inFileOrder(JsonObject groups) {
+        List<String> order = headers();
+        List<Map.Entry<String, JsonElement>> named = new ArrayList<>();
+        List<Map.Entry<String, JsonElement>> rest = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> entry : groups.entrySet()) {
+            (order.contains(entry.getKey()) ? named : rest).add(entry);
+        }
+        Collections.sort(named, new Comparator<Map.Entry<String, JsonElement>>() {
+
+            @Override
+            public int compare(Map.Entry<String, JsonElement> left, Map.Entry<String, JsonElement> right) {
+                return Integer.compare(order.indexOf(left.getKey()), order.indexOf(right.getKey()));
+            }
+        });
+        named.addAll(rest);
+        return named;
+    }
+
+    private List<String> headers() {
+        List<String> order = new ArrayList<>();
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(coreFile, StandardCharsets.UTF_8);
+        } catch (IOException failure) {
+            return order;
+        }
+        String prefix = "[" + GROUPS_FIELD + ".";
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith(prefix) || !trimmed.endsWith("]")) {
+                continue;
+            }
+            String id = trimmed.substring(prefix.length(), trimmed.length() - 1);
+            int dot = id.indexOf('.');
+            if (dot >= 0) {
+                id = id.substring(0, dot);
+            }
+            id = unquote(id.trim());
+            if (!id.isEmpty() && !order.contains(id)) {
+                order.add(id);
+            }
+        }
+        return order;
+    }
+
+    private static String unquote(String value) {
+        boolean quoted = value.length() > 1
+            && (value.startsWith("\"") && value.endsWith("\"") || value.startsWith("'") && value.endsWith("'"));
+        return quoted ? value.substring(1, value.length() - 1) : value;
+    }
+
+    private List<UserRecord> readPlayers(CoreGroupsView view, Counts counts) {
         List<UserRecord> players = new ArrayList<>();
-        JsonObject source = object(data.get(PLAYERS_FIELD));
-        for (Map.Entry<String, JsonElement> entry : source.entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : object(view.players).entrySet()) {
             UUID uuid = uuidOf(entry.getKey());
             if (uuid == null) {
                 counts.playersSkipped++;
@@ -317,12 +411,11 @@ public final class CoreJsonImporter {
         return data;
     }
 
-    private Snapshot merge(Snapshot current, List<GroupRecord> groups, List<UserRecord> players, String defaultGroup,
-        String opGroup) {
+    private Snapshot merge(Snapshot current, List<GroupRecord> groups, List<UserRecord> players) {
         Snapshot.Builder builder = Snapshot.builder()
             .revision(current.revision() + 1L)
-            .defaultGroup(pick(current.defaultGroup(), defaultGroup))
-            .opGroup(pick(current.opGroup(), opGroup))
+            .defaultGroup(current.defaultGroup())
+            .opGroup(current.opGroup())
             .from(current);
         for (GroupRecord group : groups) {
             builder.group(group);
@@ -331,13 +424,6 @@ public final class CoreJsonImporter {
             builder.user(player);
         }
         return builder.build();
-    }
-
-    private static String pick(String own, String imported) {
-        if (own != null && !own.isEmpty()) {
-            return own;
-        }
-        return imported != null ? imported.toLowerCase(Locale.ROOT) : null;
     }
 
     private ChangeBatch batchOf(List<GroupRecord> groups, List<UserRecord> players) {
@@ -351,65 +437,72 @@ public final class CoreJsonImporter {
         return builder.build();
     }
 
-    private boolean writeMarker(JsonObject data, String hash) {
-        JsonObject marker = new JsonObject();
-        marker.addProperty(MARKER_HASH, hash);
-        marker.addProperty(MARKER_TIME, Long.valueOf(System.currentTimeMillis()));
-        data.add(MARKER_FIELD, marker);
-        try {
-            write(coreFile, data);
-            return true;
-        } catch (IOException failure) {
-            log.error("Marker for {} was not written: {}", coreFile, failure.toString());
-            return false;
-        }
+    private static String markerHash(CoreGroupsView view) {
+        return view.codepermsImport == null ? null : text(view.codepermsImport.get(MARKER_HASH));
     }
 
-    private String markerHash(JsonObject data) {
-        JsonObject marker = object(data.get(MARKER_FIELD));
-        return text(marker.get(MARKER_HASH));
-    }
-
-    private byte[] read() {
-        try {
-            return Files.readAllBytes(coreFile);
-        } catch (IOException failure) {
-            log.error("Core permission file {} was not read: {}", coreFile, failure.toString());
-            return null;
-        }
-    }
-
-    private JsonObject parse(byte[] raw) {
-        try (Reader reader = new InputStreamReader(new ByteArrayInputStream(raw), StandardCharsets.UTF_8)) {
-            JsonElement parsed = new JsonParser().parse(reader);
-            if (parsed == null || !parsed.isJsonObject()) {
-                return null;
-            }
-            return parsed.getAsJsonObject();
-        } catch (IOException | JsonParseException | IllegalStateException failure) {
-            log.error("Core permission file {} is not readable json: {}", coreFile, failure.toString());
-            return null;
-        }
-    }
-
-    private void write(Path target, JsonObject data) throws IOException {
-        Path temporary = target.resolveSibling(
-            target.getFileName()
-                .toString() + ".tmp");
+    private static void write(Path target, CoreGroupsView view) throws IOException {
+        Path temporary = target.resolveSibling(target.getFileName() + ".tmp");
         try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8)) {
-            GSON.toJson(data, writer);
+            TomlExport.write(writer, view);
         }
         Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
     }
 
-    static byte[] canonical(JsonObject data) {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        try (Writer writer = new java.io.OutputStreamWriter(out, StandardCharsets.UTF_8)) {
-            GSON.toJson(data, writer);
-        } catch (IOException failure) {
-            throw new IllegalStateException("Canonical json was not written", failure);
+    /**
+     * Значения обеих секций в одном порядке при любом чтении.
+     *
+     * <p>
+     * Хеш считается по нему, поэтому дописанный человеком комментарий и переставленные строки правкой
+     * источника не считаются: в дерево значений они не попадают.
+     */
+    static byte[] canonical(CoreGroupsView view) {
+        StringBuilder text = new StringBuilder();
+        appendSorted(text, object(view.groups));
+        text.append('|');
+        appendSorted(text, object(view.players));
+        return text.toString()
+            .getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static void appendSorted(StringBuilder text, JsonObject data) {
+        text.append('{');
+        for (Map.Entry<String, JsonElement> entry : sorted(data).entrySet()) {
+            text.append(entry.getKey())
+                .append('=');
+            appendValue(text, entry.getValue());
+            text.append(';');
         }
-        return out.toByteArray();
+        text.append('}');
+    }
+
+    private static void appendValue(StringBuilder text, JsonElement value) {
+        if (value == null || value.isJsonNull()) {
+            text.append("null");
+            return;
+        }
+        if (value.isJsonObject()) {
+            appendSorted(text, value.getAsJsonObject());
+            return;
+        }
+        if (value.isJsonArray()) {
+            text.append('[');
+            for (JsonElement element : value.getAsJsonArray()) {
+                appendValue(text, element);
+                text.append(',');
+            }
+            text.append(']');
+            return;
+        }
+        text.append(value.getAsString());
+    }
+
+    private static Map<String, JsonElement> sorted(JsonObject data) {
+        Map<String, JsonElement> byKey = new TreeMap<>();
+        for (Map.Entry<String, JsonElement> entry : data.entrySet()) {
+            byKey.put(entry.getKey(), entry.getValue());
+        }
+        return byKey;
     }
 
     private static String hashOf(byte[] raw) {
@@ -540,21 +633,18 @@ public final class CoreJsonImporter {
         private final String hash;
         private final Snapshot snapshot;
         private final ChangeBatch batch;
-        final JsonObject data;
 
         static Result of(Status status, Counts counts, boolean dryRun, String hash) {
-            return new Result(status, counts, dryRun, hash, null, null, null);
+            return new Result(status, counts, dryRun, hash, null, null);
         }
 
-        Result(Status status, Counts counts, boolean dryRun, String hash, Snapshot snapshot, ChangeBatch batch,
-            JsonObject data) {
+        Result(Status status, Counts counts, boolean dryRun, String hash, Snapshot snapshot, ChangeBatch batch) {
             this.status = status;
             this.counts = counts;
             this.dryRun = dryRun;
             this.hash = hash;
             this.snapshot = snapshot;
             this.batch = batch;
-            this.data = data;
         }
 
         public Status status() {

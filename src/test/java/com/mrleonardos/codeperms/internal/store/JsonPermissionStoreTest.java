@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -16,12 +15,11 @@ import java.util.UUID;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import com.mrleonardos.codecore.api.config.ConfigService;
+import com.mrleonardos.codeperms.TestConfigs;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.ChangeCause;
 import com.mrleonardos.codeperms.api.model.ContextSet;
@@ -31,6 +29,7 @@ import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.model.TrackRecord;
 import com.mrleonardos.codeperms.api.model.UserRecord;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
+import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 
 class JsonPermissionStoreTest {
@@ -40,13 +39,6 @@ class JsonPermissionStoreTest {
 
     @TempDir
     Path root;
-
-    private StubConfigService configs;
-
-    @BeforeEach
-    void setUp() {
-        configs = new StubConfigService(root);
-    }
 
     @Test
     void firstRunCreatesWorkingExample() {
@@ -63,9 +55,23 @@ class JsonPermissionStoreTest {
                 .isEmpty());
         assertEquals("player", snapshot.defaultGroup());
         assertEquals("admin", snapshot.opGroup());
-        assertTrue(Files.isRegularFile(configs.pathOf("codeperms", "groups")));
-        assertTrue(Files.isRegularFile(configs.pathOf("codeperms", "players")));
-        assertTrue(Files.isRegularFile(configs.pathOf("codeperms", "config")));
+        assertTrue(Files.isRegularFile(permissions().resolve("perms.toml")));
+        assertTrue(Files.isRegularFile(permissions().resolve("perms-groups.toml")));
+        assertTrue(Files.isRegularFile(permissions().resolve("perms-players.json")));
+    }
+
+    @Test
+    void defaultAndOperatorGroupsComeFromTheMainFile() {
+        TestConfigs.writeMain(root, "[permissions]", "defaultGroup = \"guest\"", "opGroup = \"owner\"");
+
+        Snapshot snapshot = store().load();
+
+        assertEquals("guest", snapshot.defaultGroup());
+        assertEquals("owner", snapshot.opGroup());
+        assertTrue(
+            !TestConfigs.read(permissions().resolve("perms.toml"))
+                .contains("defaultGroup"),
+            "имя группы по умолчанию живёт ровно в одном файле");
     }
 
     @Test
@@ -119,25 +125,20 @@ class JsonPermissionStoreTest {
 
     @Test
     void groupReferencesAreNormalizedWhileReading() {
-        JsonObject file = new JsonObject();
-        JsonArray groups = new JsonArray();
-        groups.add(declaration("player", "codechat.create"));
-        JsonObject admin = declaration("admin", "*");
-        JsonArray inherits = new JsonArray();
-        inherits.add(new com.google.gson.JsonPrimitive(" Player "));
-        admin.add("inherits", inherits);
-        groups.add(admin);
-        JsonArray tracks = new JsonArray();
-        JsonObject track = new JsonObject();
-        track.addProperty("name", "main");
-        JsonArray ladder = new JsonArray();
-        ladder.add(new com.google.gson.JsonPrimitive("PLAYER"));
-        ladder.add(new com.google.gson.JsonPrimitive("admin"));
-        track.add("groups", ladder);
-        tracks.add(track);
-        file.add("groups", groups);
-        file.add("tracks", tracks);
-        StubConfigService.Json.write(file(), file);
+        TestConfigs.write(
+            groupsFile(),
+            "[[groups]]",
+            "id = \"player\"",
+            "nodes = [\"codechat.create\"]",
+            "",
+            "[[groups]]",
+            "id = \"admin\"",
+            "nodes = [\"*\"]",
+            "inherits = [\" Player \"]",
+            "",
+            "[[tracks]]",
+            "name = \"main\"",
+            "groups = [\"PLAYER\", \"admin\"]");
 
         Snapshot snapshot = store().load();
 
@@ -155,10 +156,15 @@ class JsonPermissionStoreTest {
 
     @Test
     void duplicateGroupIdentifierKeepsFirstDeclaration() {
-        JsonArray groups = new JsonArray();
-        groups.add(declaration("player", "codechat.create"));
-        groups.add(declaration("player", "codechat.channel.*"));
-        StubConfigService.Json.write(file(), objectWithGroups(groups));
+        TestConfigs.write(
+            groupsFile(),
+            "[[groups]]",
+            "id = \"player\"",
+            "nodes = [\"codechat.create\"]",
+            "",
+            "[[groups]]",
+            "id = \"player\"",
+            "nodes = [\"codechat.channel.*\"]");
 
         Snapshot snapshot = store().load();
 
@@ -175,19 +181,31 @@ class JsonPermissionStoreTest {
     }
 
     @Test
-    void brokenGroupsFileIsSetAsideAndReplacedWithDefaults() throws Exception {
-        Path groups = file();
-        Files.createDirectories(groups.getParent());
-        Files.write(groups, Arrays.asList("{ \"groups\": ["));
+    void brokenGroupsFileIsSetAsideAndReplacedWithDefaults() {
+        TestConfigs.write(groupsFile(), "[[groups", "id = \"player\"");
 
         Snapshot snapshot = store().load();
 
-        assertTrue(Files.isRegularFile(groups.resolveSibling("groups.json.broken")));
+        assertTrue(Files.isRegularFile(permissions().resolve("perms-groups.toml.broken")));
         assertEquals(
             Arrays.asList("player", "admin"),
             new ArrayList<>(
                 snapshot.groups()
                     .keySet()));
+    }
+
+    @Test
+    void keyTheModDoesNotReadSurvivesTheNextWrite() {
+        store().load();
+        Path file = groupsFile();
+        TestConfigs.write(file, "# заметка админа\nremark = \"перевести vip на треки\"\n" + TestConfigs.read(file));
+
+        JsonPermissionStore store = freshStore();
+        store.save(store.load());
+
+        String written = TestConfigs.read(file);
+        assertTrue(written.contains("remark = \"перевести vip на треки\""), "чужой ключ остаётся в файле");
+        assertTrue(written.contains("# заметка админа"), "строка человека над своим ключом остаётся");
     }
 
     @Test
@@ -220,32 +238,21 @@ class JsonPermissionStoreTest {
     }
 
     @Test
-    void saveWritesEncodedNodesToTheFile() throws Exception {
+    void saveWritesEncodedNodesToTheFile() {
         store().save(snapshot());
 
-        String text = new String(Files.readAllBytes(file()), StandardCharsets.UTF_8);
+        String text = TestConfigs.read(groupsFile());
         assertTrue(text.contains("codechat.channel.*"));
         assertTrue(text.contains("expiresAt"));
         assertTrue(text.contains("contexts"));
     }
 
-    private JsonObject objectWithGroups(JsonArray groups) {
-        JsonObject data = new JsonObject();
-        data.add("groups", groups);
-        return data;
+    private Path permissions() {
+        return TestConfigs.permissions(root);
     }
 
-    private JsonObject declaration(String id, String node) {
-        JsonObject entry = new JsonObject();
-        entry.addProperty("id", id);
-        JsonArray nodes = new JsonArray();
-        nodes.add(new com.google.gson.JsonPrimitive(node));
-        entry.add("nodes", nodes);
-        return entry;
-    }
-
-    private Path file() {
-        return configs.pathOf("codeperms", "groups");
+    private Path groupsFile() {
+        return permissions().resolve("perms-groups.toml");
     }
 
     private Snapshot snapshot() {
@@ -292,19 +299,19 @@ class JsonPermissionStoreTest {
     }
 
     private JsonPermissionStore store() {
-        return new JsonPermissionStore(
-            configs.open(PermsSettings.spec()),
-            configs.open(JsonGroupsStore.spec()),
-            configs.open(JsonPlayersStore.spec()),
-            PermsLimits.defaults(),
-            LOG);
+        return storeOf(TestConfigs.of(root));
     }
 
     private JsonPermissionStore freshStore() {
+        return storeOf(TestConfigs.of(root));
+    }
+
+    private JsonPermissionStore storeOf(ConfigService configs) {
         return new JsonPermissionStore(
-            new StubConfigService(root).open(PermsSettings.spec()),
-            new StubConfigService(root).open(JsonGroupsStore.spec()),
-            new StubConfigService(root).open(JsonPlayersStore.spec()),
+            configs.open(PermsSettings.spec()),
+            new MainSettings(configs),
+            configs.open(GroupsStore.spec()),
+            configs.open(PlayersStore.spec()),
             PermsLimits.defaults(),
             LOG);
     }

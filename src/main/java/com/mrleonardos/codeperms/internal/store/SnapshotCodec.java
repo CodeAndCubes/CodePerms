@@ -27,7 +27,6 @@ public final class SnapshotCodec {
 
     public static final String SCHEMA_VERSION = SchemaMigrations.VERSION_FIELD;
     public static final String GROUPS = "groups";
-    public static final String TRACKS = "tracks";
     public static final String PLAYERS = "players";
 
     public static final String ID = "id";
@@ -57,11 +56,8 @@ public final class SnapshotCodec {
         return limits;
     }
 
-    public JsonObject emptyGroupsFile() {
-        JsonObject file = new JsonObject();
-        file.add(GROUPS, new JsonArray());
-        file.add(TRACKS, new JsonArray());
-        return file;
+    public PermsGroupsFile emptyGroupsFile() {
+        return new PermsGroupsFile();
     }
 
     public JsonObject emptyPlayersFile() {
@@ -70,15 +66,14 @@ public final class SnapshotCodec {
         return file;
     }
 
-    public void writeGroups(JsonObject file, List<GroupRecord> groups, List<TrackRecord> tracks) {
+    public void writeGroups(PermsGroupsFile file, List<GroupRecord> groups, List<TrackRecord> tracks) {
         writeGroups(file, groups, tracks, Quarantine.empty());
     }
 
-    public void writeGroups(JsonObject file, List<GroupRecord> groups, List<TrackRecord> tracks,
+    public void writeGroups(PermsGroupsFile file, List<GroupRecord> groups, List<TrackRecord> tracks,
         Quarantine quarantine) {
-        removeSchemaVersion(file);
-        file.add(GROUPS, encodeGroups(groups, quarantine));
-        file.add(TRACKS, encodeTracks(tracks, quarantine));
+        file.groups = encodeGroups(groups, quarantine);
+        file.tracks = encodeTracks(tracks, quarantine);
     }
 
     public void writePlayers(JsonObject file, List<UserRecord> players) {
@@ -90,7 +85,7 @@ public final class SnapshotCodec {
         file.add(PLAYERS, encodePlayers(players, quarantine));
     }
 
-    public DecodedGroups readGroups(JsonObject file, Logger log) {
+    public DecodedGroups readGroups(PermsGroupsFile file, Logger log) {
         List<GroupRecord> groups = new ArrayList<>();
         List<TrackRecord> tracks = new ArrayList<>();
         int dropped = 0;
@@ -98,7 +93,7 @@ public final class SnapshotCodec {
         Quarantine quarantine = new Quarantine();
 
         Set<String> knownGroups = new HashSet<>();
-        for (JsonElement element : array(file.get(GROUPS))) {
+        for (JsonElement element : array(file.groups)) {
             if (!element.isJsonObject()) {
                 dropped++;
                 quarantine.groups.add(element);
@@ -132,7 +127,7 @@ public final class SnapshotCodec {
         }
 
         Set<String> knownTracks = new HashSet<>();
-        for (JsonElement element : array(file.get(TRACKS))) {
+        for (JsonElement element : array(file.tracks)) {
             if (!element.isJsonObject()) {
                 dropped++;
                 quarantine.tracks.add(element);

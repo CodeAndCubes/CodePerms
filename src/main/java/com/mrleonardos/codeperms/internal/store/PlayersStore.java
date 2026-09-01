@@ -7,6 +7,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.gson.JsonObject;
 import com.mrleonardos.codecore.api.config.ConfigFile;
+import com.mrleonardos.codecore.api.config.ConfigFormat;
+import com.mrleonardos.codecore.api.config.ConfigRoles;
 import com.mrleonardos.codecore.api.config.ConfigScope;
 import com.mrleonardos.codecore.api.config.ConfigSpec;
 import com.mrleonardos.codecore.api.config.Migration;
@@ -14,7 +16,7 @@ import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.UserRecord;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 
-public final class JsonPlayersStore {
+public final class PlayersStore {
 
     private final ConfigFile<JsonObject> file;
     private final PermsLimits limits;
@@ -25,16 +27,18 @@ public final class JsonPlayersStore {
     public static ConfigSpec<JsonObject> spec() {
         ConfigSpec.Builder<JsonObject> builder = ConfigSpec
             .of(PermsSettings.MODID, PermsSettings.PLAYERS_FILE, JsonObject.class)
+            .role(ConfigRoles.PERMISSIONS)
             .scope(ConfigScope.SETTINGS)
+            .format(ConfigFormat.JSON)
             .schemaVersion(SchemaMigrations.PLAYERS_VERSION);
         for (Migration migration : SchemaMigrations.playersChain()) {
             builder.migration(migration);
         }
-        return builder.defaults(JsonPlayersStore::defaults)
+        return builder.defaults(PlayersStore::defaults)
             .build();
     }
 
-    public JsonPlayersStore(ConfigFile<JsonObject> file, PermsLimits limits, Logger log) {
+    public PlayersStore(ConfigFile<JsonObject> file, PermsLimits limits, Logger log) {
         this.file = file;
         this.limits = limits;
         this.log = log;

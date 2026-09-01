@@ -1,16 +1,16 @@
 package com.mrleonardos.codeperms.internal;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import org.apache.logging.log4j.Logger;
 
+import com.mrleonardos.codecore.api.config.Comment;
+import com.mrleonardos.codecore.api.config.ConfigRoles;
 import com.mrleonardos.codecore.api.config.ConfigScope;
 import com.mrleonardos.codecore.api.config.ConfigSpec;
 import com.mrleonardos.codecore.api.config.Migration;
-import com.mrleonardos.codecore.api.service.ServicePriority;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.NodeEntry;
 import com.mrleonardos.codeperms.internal.store.SchemaMigrations;
@@ -18,41 +18,36 @@ import com.mrleonardos.codeperms.internal.store.SchemaMigrations;
 public final class PermsSettings {
 
     public static final String MODID = "codeperms";
-    public static final String SETTINGS_FILE = "config";
     public static final String GROUPS_FILE = "groups";
     public static final String PLAYERS_FILE = "players";
-    public static final String EXPORT_DIRECTORY = "export";
+    public static final String EXPORT_DIRECTORY = "perms-export";
 
-    public static final String DEFAULT_PROVIDER = "json";
-    public static final String DEFAULT_GROUP = "player";
-    public static final String OP_GROUP = "admin";
     public static final String DEFAULT_NODE = "codeperms.me";
-    public static final ServicePriority DEFAULT_SERVICE_PRIORITY = ServicePriority.ADDON;
 
-    public static final int DEFAULT_AUTOSAVE_SECONDS = 30;
     public static final int DEFAULT_SCAN_TICKS = 200;
     public static final int DEFAULT_OFFLINE_CACHE_SIZE = 512;
 
     private static final PermsSettings DEFAULTS = new PermsSettings();
 
-    public Storage storage = new Storage();
-    public String defaultGroup = DEFAULT_GROUP;
-    public String opGroup = OP_GROUP;
-    public String servicePriority = DEFAULT_SERVICE_PRIORITY.name();
+    @Comment({ "Выдавать ли группу операторов тем, кто записан в ops.json.",
+        "Имя самой группы стоит в config.toml, ключ opGroup секции [permissions]." })
     public boolean applyOps = true;
+
+    @Comment({ "Правила, которые получает любой игрок до всяких групп.",
+        "Минус в начале запрещает: \"-codeperms.me\" отбирает право у всех." })
     public List<String> defaultNodes = new ArrayList<>(Collections.singletonList(DEFAULT_NODE));
+
     public Limits limits = new Limits();
     public Expiry expiry = new Expiry();
     public Cache cache = new Cache();
-    public int autosaveSeconds = DEFAULT_AUTOSAVE_SECONDS;
-    public Audit audit = new Audit();
 
     public static PermsSettings defaults() {
         return DEFAULTS;
     }
 
     public static ConfigSpec<PermsSettings> spec() {
-        ConfigSpec.Builder<PermsSettings> builder = ConfigSpec.of(MODID, SETTINGS_FILE, PermsSettings.class)
+        ConfigSpec.Builder<PermsSettings> builder = ConfigSpec.settings(MODID, PermsSettings.class)
+            .role(ConfigRoles.PERMISSIONS)
             .scope(ConfigScope.SETTINGS)
             .schemaVersion(SchemaMigrations.SETTINGS_VERSION);
         for (Migration migration : SchemaMigrations.settingsChain()) {
@@ -73,22 +68,6 @@ public final class PermsSettings {
             log.warn("Config ceiling is unusable: {}", remark);
         }
         return ceilings;
-    }
-
-    public ServicePriority priority(Logger log) {
-        String requested = servicePriority == null ? "" : servicePriority.trim();
-        for (ServicePriority known : ServicePriority.values()) {
-            if (known.name()
-                .equalsIgnoreCase(requested)) {
-                return known;
-            }
-        }
-        log.warn(
-            "servicePriority = {} is not one of {}, {} is used",
-            servicePriority,
-            Arrays.toString(ServicePriority.values()),
-            DEFAULT_SERVICE_PRIORITY);
-        return DEFAULT_SERVICE_PRIORITY;
     }
 
     private PermsLimits.Builder ceilingsBuilder() {
@@ -119,49 +98,51 @@ public final class PermsSettings {
         return parsed;
     }
 
-    public String provider() {
-        return storage.provider == null || storage.provider.trim()
-            .isEmpty() ? DEFAULT_PROVIDER : storage.provider.trim();
-    }
-
-    public int autosaveTicks() {
-        return Math.max(1, autosaveSeconds) * 20;
-    }
-
     public int scanTicks() {
         return Math.max(1, expiry.scanTicks);
     }
 
-    public static final class Storage {
-
-        public String provider = DEFAULT_PROVIDER;
-    }
-
+    @Comment({ "Потолки, выше которых мод не поднимется даже по этому файлу.",
+        "Опустить можно, поднять нет: они защищают память и время разбора файлов.",
+        "Запись, которая в потолок не влезла, остаётся в файле нетронутой и в снимок не попадает." })
     public static final class Limits {
 
+        @Comment("Длина одного правила в символах.")
         public int nodeLength = PermsLimits.DEFAULT_NODE_LENGTH;
+
+        @Comment("Сколько точек считается правилом: codechat.channel.global.read это четыре сегмента.")
         public int nodeSegments = PermsLimits.DEFAULT_NODE_SEGMENTS;
+
+        @Comment("Сколько правил читается у одной группы или одного игрока.")
         public int nodesPerSubject = PermsLimits.DEFAULT_NODES_PER_SUBJECT;
+
+        @Comment("Длина имени группы.")
         public int groupIdLength = PermsLimits.DEFAULT_GROUP_ID_LENGTH;
+
+        @Comment("Сколько групп читается из файла.")
         public int groups = PermsLimits.DEFAULT_GROUPS;
+
+        @Comment("Длина значения меты: префикса, суффикса, лимита домов.")
         public int metaValueLength = PermsLimits.DEFAULT_META_VALUE_LENGTH;
+
+        @Comment("Сколько ключей меты читается у одной группы или одного игрока.")
         public int metaKeysPerSubject = PermsLimits.DEFAULT_META_KEYS_PER_SUBJECT;
+
+        @Comment("Длина имени трека.")
         public int trackNameLength = PermsLimits.DEFAULT_TRACK_NAME_LENGTH;
     }
 
+    @Comment("Снятие выдач, у которых вышел срок.")
     public static final class Expiry {
 
+        @Comment({ "Через сколько тиков сервер смотрит, чему вышел срок.", "200 тиков это десять секунд." })
         public int scanTicks = DEFAULT_SCAN_TICKS;
     }
 
+    @Comment("Память под игроков, которых сейчас нет на сервере.")
     public static final class Cache {
 
+        @Comment("Сколько ответов про операторов держать про запас.")
         public int offlineCacheSize = DEFAULT_OFFLINE_CACHE_SIZE;
-    }
-
-    public static final class Audit {
-
-        public boolean logChanges = true;
-        public boolean logChecks = false;
     }
 }

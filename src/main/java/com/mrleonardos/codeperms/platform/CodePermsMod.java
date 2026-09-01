@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.mrleonardos.codecore.api.CodeApi;
 import com.mrleonardos.codecore.api.config.ConfigFile;
+import com.mrleonardos.codecore.api.config.ConfigRoles;
 import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.service.PermissionService;
 import com.mrleonardos.codecore.api.util.Players;
@@ -17,15 +18,16 @@ import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.manage.ChangeEvent;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
+import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
 import com.mrleonardos.codeperms.internal.admin.PermsAdminImpl;
 import com.mrleonardos.codeperms.internal.command.DebugView;
 import com.mrleonardos.codeperms.internal.command.PermsCommands;
 import com.mrleonardos.codeperms.internal.engine.ResolverImpl;
-import com.mrleonardos.codeperms.internal.store.CoreJsonImporter;
-import com.mrleonardos.codeperms.internal.store.JsonGroupsStore;
-import com.mrleonardos.codeperms.internal.store.JsonPlayersStore;
+import com.mrleonardos.codeperms.internal.store.CoreGroupsImporter;
+import com.mrleonardos.codeperms.internal.store.GroupsStore;
+import com.mrleonardos.codeperms.internal.store.PlayersStore;
 import com.mrleonardos.codeperms.internal.store.SingleWriterImpl;
 
 import cpw.mods.fml.common.FMLCommonHandler;
@@ -45,12 +47,15 @@ public final class CodePermsMod {
 
     public static final Logger LOG = LogManager.getLogger("CodePerms");
 
+    private MainSettings main;
     private ConfigFile<PermsSettings> settings;
     private ServerThreads threads;
     private SingleWriterImpl writer;
     private OperatorWatch operators;
     private PlayerContexts contexts;
-    private CoreJsonImporter importer;
+    private CoreGroupsImporter importer;
+    private ForgeLifecycle lifecycle;
+    private boolean listening;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -59,9 +64,51 @@ public final class CodePermsMod {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
+        CodeApi.adapters()
+            .offer(new PermsRoleAdapter(this::assemble));
+    }
+
+    @Mod.EventHandler
+    public void serverStarting(FMLServerStartingEvent event) {
+        if (writer == null) {
+            LOG.info("CodePerms stands aside, the permissions role is held by {}", owner());
+            return;
+        }
+        threads.attach(Thread.currentThread());
+        PermsApi.freeze();
+        writer.start();
+        contexts.clear();
+        for (EntityPlayerMP player : Players.allOnline()) {
+            operators.onJoin(player.getUniqueID());
+        }
+        if (!listening) {
+            listening = true;
+            FMLCommonHandler.instance()
+                .bus()
+                .register(lifecycle);
+        }
+        summary();
+    }
+
+    @Mod.EventHandler
+    public void serverStopping(FMLServerStoppingEvent event) {
+        if (writer == null) {
+            return;
+        }
+        writer.stop();
+        contexts.clear();
+        operators.clear();
+    }
+
+    /**
+     * Собрать мод целиком. Зовётся реестром адаптеров у победителя роли, поэтому до этого места мод не
+     * открывает ни одного файла и не заводит ни одной команды.
+     */
+    private PermissionService assemble() {
         ConfigService configs = CodeApi.configs();
         Scheduler scheduler = CodeApi.scheduler();
 
+        main = new MainSettings(configs);
         settings = configs.open(PermsSettings.spec());
         PermsLimits limits = settings.get()
             .ceilings(LOG);
@@ -69,7 +116,7 @@ public final class CodePermsMod {
         defaults.refresh();
 
         threads = new ServerThreads(scheduler);
-        writer = SingleWriterImpl.create(configs, threads, LOG);
+        writer = SingleWriterImpl.create(configs, main, threads, LOG);
         ChangeCoalescer coalescer = new ChangeCoalescer(LOG);
         ResolverImpl resolver = new ResolverImpl(System::currentTimeMillis, defaults);
         PermsAdminImpl admin = new PermsAdminImpl(writer, coalescer, limits, resolver);
@@ -81,21 +128,16 @@ public final class CodePermsMod {
             }
             threads.afterTicks(1, coalescer::dispatch);
         });
-        operators = new OperatorWatch(admin, settings, writer::snapshot, LOG);
+        operators = new OperatorWatch(admin, settings, main, writer::snapshot, LOG);
         contexts = new PlayerContexts(PermsApi.contexts(), writer::snapshot, operators, LOG);
         NameResolver names = new NameResolver(writer::snapshot);
         SenderSubjects subjects = new SenderSubjects(names, contexts);
 
-        importer = new CoreJsonImporter(
-            CoreJsonImporter.coreFileOf(configs),
-            configs.directory(PermsSettings.MODID)
-                .resolve(PermsSettings.EXPORT_DIRECTORY),
-            limits,
-            LOG);
+        importer = new CoreGroupsImporter(configs, limits, LOG);
         PlatformMaintenance maintenance = new PlatformMaintenance(
             settings,
-            configs.open(JsonGroupsStore.spec()),
-            configs.open(JsonPlayersStore.spec()),
+            configs.open(GroupsStore.spec()),
+            configs.open(PlayersStore.spec()),
             writer,
             importer,
             defaults,
@@ -110,44 +152,14 @@ public final class CodePermsMod {
             maintenance,
             new DebugView(resolver));
 
-        ForgeLifecycle lifecycle = new ForgeLifecycle(contexts, operators);
+        lifecycle = new ForgeLifecycle(contexts, operators);
         CodeApi.commands()
             .register(commands.root());
-        ServiceBridge.register(
-            new CorePermissionService(
-                writer::snapshot,
-                resolver,
-                subjects,
-                subjects::playerOf,
-                () -> settings.get().audit.logChecks),
-            settings.get()
-                .priority(LOG));
-        FMLCommonHandler.instance()
-            .bus()
-            .register(lifecycle);
-    }
-
-    @Mod.EventHandler
-    public void serverStarting(FMLServerStartingEvent event) {
-        threads.attach(Thread.currentThread());
-        PermsApi.freeze();
-        writer.start();
-        contexts.clear();
-        for (EntityPlayerMP player : Players.allOnline()) {
-            operators.onJoin(player.getUniqueID());
-        }
-        summary();
-    }
-
-    @Mod.EventHandler
-    public void serverStopping(FMLServerStoppingEvent event) {
-        writer.stop();
-        contexts.clear();
-        operators.clear();
+        return new CorePermissionService(writer::snapshot, resolver, subjects, subjects::playerOf, main::logChecks);
     }
 
     private void audit(ChangeBatch batch) {
-        if (batch.isEmpty() || !settings.get().audit.logChanges) {
+        if (batch.isEmpty() || !main.logChanges()) {
             return;
         }
         LOG.info("Permission change: {}", batch);
@@ -156,7 +168,7 @@ public final class CodePermsMod {
     private void summary() {
         Snapshot snapshot = writer.snapshot();
         LOG.info(
-            "PermissionService is held by {}, storage provider {} holds {} group(s), {} track(s) and {} player(s), core permissions file {}",
+            "Permissions role is held by {}, storage provider {} holds {} group(s), {} track(s) and {} player(s), core permissions file {}",
             owner(),
             writer.store()
                 .id(),
@@ -172,13 +184,10 @@ public final class CodePermsMod {
             importState());
     }
 
-    private String owner() {
-        return CodeApi.services()
-            .find(PermissionService.class)
-            .map(
-                service -> service.getClass()
-                    .getName())
-            .orElse("nobody");
+    private static String owner() {
+        String named = CodeApi.adapters()
+            .owner(ConfigRoles.PERMISSIONS);
+        return named == null ? "nobody" : named;
     }
 
     private String importState() {

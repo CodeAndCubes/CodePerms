@@ -12,48 +12,21 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
 
-import com.mrleonardos.codecore.api.service.ServicePriority;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.NodeEntry;
 
 class PermsSettingsTest {
 
     private static final Logger LOG = LogManager.getLogger(PermsSettingsTest.class);
-    private static final String LONG_NODE = "codechat.channel.global.read";
 
     @Test
     void defaultsMatchFactoryValues() {
         PermsSettings settings = PermsSettings.defaults();
 
-        assertEquals("json", settings.provider());
-        assertEquals("player", settings.defaultGroup);
-        assertEquals("admin", settings.opGroup);
         assertTrue(settings.applyOps);
-        assertEquals(30, settings.autosaveSeconds);
-        assertEquals(30 * 20, settings.autosaveTicks());
         assertEquals(200, settings.scanTicks());
         assertEquals(512, settings.cache.offlineCacheSize);
-        assertTrue(settings.audit.logChanges);
-        assertTrue(!settings.audit.logChecks);
         assertEquals(Arrays.asList("codeperms.me"), settings.defaultNodes);
-        assertEquals(ServicePriority.ADDON, settings.priority(LOG));
-    }
-
-    @Test
-    void serviceWeightComesFromTheConfigAndFallsBackToAddon() {
-        PermsSettings settings = new PermsSettings();
-
-        settings.servicePriority = "override";
-        assertEquals(ServicePriority.OVERRIDE, settings.priority(LOG));
-
-        settings.servicePriority = "BUILTIN";
-        assertEquals(ServicePriority.BUILTIN, settings.priority(LOG));
-
-        settings.servicePriority = "highest";
-        assertEquals(ServicePriority.ADDON, settings.priority(LOG));
-
-        settings.servicePriority = null;
-        assertEquals(ServicePriority.ADDON, settings.priority(LOG));
     }
 
     @Test
@@ -81,14 +54,6 @@ class PermsSettingsTest {
     }
 
     @Test
-    void blankProviderFallsBackToJson() {
-        PermsSettings settings = new PermsSettings();
-        settings.storage.provider = "  ";
-
-        assertEquals("json", settings.provider());
-    }
-
-    @Test
     void defaultNodesAreParsedAndBrokenOnesAreSkipped() {
         PermsSettings settings = new PermsSettings();
         settings.defaultNodes = Arrays.asList("codechat.create", "-codechat.delete", "not a node", "");
@@ -106,6 +71,14 @@ class PermsSettingsTest {
         assertTrue(
             settings.parsedDefaultNodes(settings.ceilings(), LOG)
                 .isEmpty());
+    }
+
+    @Test
+    void scanTicksNeverFallToZero() {
+        PermsSettings settings = new PermsSettings();
+        settings.expiry.scanTicks = 0;
+
+        assertEquals(1, settings.scanTicks());
     }
 
     private List<String> texts(List<NodeEntry> nodes) {

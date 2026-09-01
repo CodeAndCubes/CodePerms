@@ -25,13 +25,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.util.Scheduler;
+import com.mrleonardos.codeperms.TestConfigs;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.ChangeCause;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
+import com.mrleonardos.codeperms.internal.MainSettings;
 
 class SingleWriterImplTest {
 
@@ -41,11 +44,11 @@ class SingleWriterImplTest {
     @TempDir
     Path root;
 
-    private StubConfigService configs;
+    private ConfigService configs;
 
     @BeforeEach
     void setUp() {
-        configs = new StubConfigService(root);
+        configs = TestConfigs.of(root);
     }
 
     @Test
@@ -437,10 +440,25 @@ class SingleWriterImplTest {
     private PermissionStore builtin() {
         return new JsonPermissionStore(
             configs.open(com.mrleonardos.codeperms.internal.PermsSettings.spec()),
-            configs.open(JsonGroupsStore.spec()),
-            configs.open(JsonPlayersStore.spec()),
+            new MainSettings(configs),
+            configs.open(GroupsStore.spec()),
+            configs.open(PlayersStore.spec()),
             PermsLimits.defaults(),
             LOG);
+    }
+
+    @Test
+    void providerNameComesFromTheMainFile() {
+        TestConfigs.writeMain(root, "[storage]", "provider = \"nowhere\"");
+        ConfigService named = TestConfigs.of(root);
+
+        SingleWriterImpl writer = SingleWriterImpl.create(named, new MainSettings(named), new TestScheduler(), LOG);
+
+        assertEquals(
+            JsonPermissionStore.ID,
+            writer.store()
+                .id(),
+            "имя из главного файла никто не занял, поднимаемся на встроенном json");
     }
 
     private Snapshot with(Snapshot current, com.mrleonardos.codeperms.api.model.GroupRecord group) {

@@ -8,8 +8,8 @@ import java.util.Map;
 
 import org.apache.logging.log4j.Logger;
 
-import com.google.gson.JsonObject;
 import com.mrleonardos.codecore.api.config.ConfigFile;
+import com.mrleonardos.codecore.api.config.ConfigRoles;
 import com.mrleonardos.codecore.api.config.ConfigScope;
 import com.mrleonardos.codecore.api.config.ConfigSpec;
 import com.mrleonardos.codecore.api.config.Migration;
@@ -19,27 +19,28 @@ import com.mrleonardos.codeperms.api.model.NodeEntry;
 import com.mrleonardos.codeperms.api.model.TrackRecord;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 
-public final class JsonGroupsStore {
+public final class GroupsStore {
 
-    private final ConfigFile<JsonObject> file;
+    private final ConfigFile<PermsGroupsFile> file;
     private final PermsLimits limits;
     private final Logger log;
 
     private volatile SnapshotCodec.Quarantine quarantine = SnapshotCodec.Quarantine.empty();
 
-    public static ConfigSpec<JsonObject> spec() {
-        ConfigSpec.Builder<JsonObject> builder = ConfigSpec
-            .of(PermsSettings.MODID, PermsSettings.GROUPS_FILE, JsonObject.class)
+    public static ConfigSpec<PermsGroupsFile> spec() {
+        ConfigSpec.Builder<PermsGroupsFile> builder = ConfigSpec
+            .of(PermsSettings.MODID, PermsSettings.GROUPS_FILE, PermsGroupsFile.class)
+            .role(ConfigRoles.PERMISSIONS)
             .scope(ConfigScope.SETTINGS)
             .schemaVersion(SchemaMigrations.GROUPS_VERSION);
         for (Migration migration : SchemaMigrations.groupsChain()) {
             builder.migration(migration);
         }
-        return builder.defaults(JsonGroupsStore::defaults)
+        return builder.defaults(GroupsStore::defaults)
             .build();
     }
 
-    public JsonGroupsStore(ConfigFile<JsonObject> file, PermsLimits limits, Logger log) {
+    public GroupsStore(ConfigFile<PermsGroupsFile> file, PermsLimits limits, Logger log) {
         this.file = file;
         this.limits = limits;
         this.log = log;
@@ -56,9 +57,9 @@ public final class JsonGroupsStore {
         file.save();
     }
 
-    public static JsonObject defaults() {
+    public static PermsGroupsFile defaults() {
         SnapshotCodec codec = new SnapshotCodec(PermsLimits.defaults());
-        JsonObject file = codec.emptyGroupsFile();
+        PermsGroupsFile file = codec.emptyGroupsFile();
         codec.writeGroups(file, defaultGroups(), defaultTracks());
         return file;
     }

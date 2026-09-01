@@ -2,7 +2,6 @@ package com.mrleonardos.codeperms.internal.store;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
@@ -149,9 +148,8 @@ class SnapshotCodecTest {
         JsonArray ladder = new JsonArray();
         ladder.add(new JsonPrimitive("ADMIN"));
         track.add("groups", ladder);
-        JsonObject file = new JsonObject();
-        file.add("groups", groups);
-        file.add("tracks", tracks(track));
+        PermsGroupsFile file = fileWithGroups(groups);
+        file.tracks = tracks(track);
 
         SnapshotCodec.DecodedGroups decoded = codec.readGroups(file, LOG);
 
@@ -191,7 +189,7 @@ class SnapshotCodecTest {
     void recordsRoundTripThroughFiles() {
         Snapshot written = snapshot();
 
-        JsonObject groupsFile = new JsonObject();
+        PermsGroupsFile groupsFile = new PermsGroupsFile();
         JsonObject playersFile = new JsonObject();
         codec.writeGroups(groupsFile, groupsOf(written), tracksOf(written));
         codec.writePlayers(playersFile, usersOf(written));
@@ -278,8 +276,7 @@ class SnapshotCodecTest {
             entry.addProperty("id", "group" + index);
             groups.add(entry);
         }
-        JsonObject file = new JsonObject();
-        file.add("groups", groups);
+        PermsGroupsFile file = fileWithGroups(groups);
 
         SnapshotCodec limited = new SnapshotCodec(
             PermsLimits.builder()
@@ -302,8 +299,7 @@ class SnapshotCodecTest {
             entry.addProperty("id", "group" + index);
             groups.add(entry);
         }
-        JsonObject file = new JsonObject();
-        file.add("groups", groups);
+        PermsGroupsFile file = fileWithGroups(groups);
         SnapshotCodec limited = new SnapshotCodec(
             PermsLimits.builder()
                 .groups(2)
@@ -316,11 +312,7 @@ class SnapshotCodecTest {
             2,
             decoded.quarantine()
                 .records());
-        assertEquals(
-            Arrays.asList("group0", "group1", "group2", "group3"),
-            groupIdsOf(
-                file.get("groups")
-                    .getAsJsonArray()));
+        assertEquals(Arrays.asList("group0", "group1", "group2", "group3"), groupIdsOf(file.groups));
     }
 
     @Test
@@ -329,7 +321,7 @@ class SnapshotCodecTest {
         nodes.add(new JsonPrimitive("codechat.one"));
         nodes.add(new JsonPrimitive("codechat.two"));
         nodes.add(new JsonPrimitive("codechat.three"));
-        JsonObject file = fileWithNodes("vip", nodes);
+        PermsGroupsFile file = fileWithNodes("vip", nodes);
         SnapshotCodec limited = new SnapshotCodec(
             PermsLimits.builder()
                 .nodesPerSubject(1)
@@ -347,15 +339,7 @@ class SnapshotCodecTest {
 
         limited.writeGroups(file, decoded.groups(), decoded.tracks(), decoded.quarantine());
 
-        assertEquals(
-            Arrays.asList("codechat.one", "codechat.two", "codechat.three"),
-            textsOf(
-                file.get("groups")
-                    .getAsJsonArray()
-                    .get(0)
-                    .getAsJsonObject()
-                    .get("nodes")
-                    .getAsJsonArray()));
+        assertEquals(Arrays.asList("codechat.one", "codechat.two", "codechat.three"), textsOf(nodesOf(file, 0)));
     }
 
     @Test
@@ -363,21 +347,13 @@ class SnapshotCodecTest {
         JsonArray nodes = new JsonArray();
         nodes.add(new JsonPrimitive("codechat.one"));
         nodes.add(new JsonPrimitive("codechat..broken"));
-        JsonObject file = fileWithNodes("vip", nodes);
+        PermsGroupsFile file = fileWithNodes("vip", nodes);
 
         SnapshotCodec.DecodedGroups decoded = codec.readGroups(file, LOG);
         codec.writeGroups(file, decoded.groups(), decoded.tracks(), decoded.quarantine());
 
         assertEquals(1, decoded.dropped());
-        assertEquals(
-            Arrays.asList("codechat.one", "codechat..broken"),
-            textsOf(
-                file.get("groups")
-                    .getAsJsonArray()
-                    .get(0)
-                    .getAsJsonObject()
-                    .get("nodes")
-                    .getAsJsonArray()));
+        assertEquals(Arrays.asList("codechat.one", "codechat..broken"), textsOf(nodesOf(file, 0)));
     }
 
     @Test
@@ -390,8 +366,7 @@ class SnapshotCodecTest {
         group.addProperty("id", "vip");
         group.add("meta", meta);
         groups.add(group);
-        JsonObject file = new JsonObject();
-        file.add("groups", groups);
+        PermsGroupsFile file = fileWithGroups(groups);
         SnapshotCodec limited = new SnapshotCodec(
             PermsLimits.builder()
                 .metaKeysPerSubject(1)
@@ -409,9 +384,7 @@ class SnapshotCodecTest {
 
         limited.writeGroups(file, decoded.groups(), decoded.tracks(), decoded.quarantine());
 
-        JsonObject written = file.get("groups")
-            .getAsJsonArray()
-            .get(0)
+        JsonObject written = file.groups.get(0)
             .getAsJsonObject()
             .get("meta")
             .getAsJsonObject();
@@ -432,10 +405,8 @@ class SnapshotCodecTest {
         JsonArray members = new JsonArray();
         members.add(new JsonPrimitive("player"));
         track.add("groups", members);
-        JsonObject file = new JsonObject();
-        file.add("tracks", tracks(track));
 
-        SnapshotCodec.DecodedGroups decoded = codec.readGroups(file, LOG);
+        SnapshotCodec.DecodedGroups decoded = codec.readGroups(fileWithTracks(tracks(track)), LOG);
 
         assertEquals(
             "main",
@@ -445,13 +416,17 @@ class SnapshotCodecTest {
     }
 
     @Test
-    void schemaVersionIsNotTouchedByWrites() {
-        JsonObject file = new JsonObject();
-        file.addProperty("schemaVersion", 1);
+    void writeLeavesOnlyWhatTheSnapshotHolds() {
+        PermsGroupsFile file = fileWithGroups(new JsonArray());
+        file.tracks = tracks(new JsonObject());
 
-        codec.writeGroups(file, Arrays.asList(), Arrays.asList());
+        codec.writeGroups(file, Arrays.asList(PermsFixtures.group("player", 0)), Arrays.asList());
 
-        assertNull(file.get("schemaVersion"));
+        assertEquals(Arrays.asList("player"), groupIdsOf(file.groups));
+        assertFalse(
+            file.tracks.iterator()
+                .hasNext(),
+            "трек, которого нет в снимке, из файла уходит");
     }
 
     private static java.util.List<String> groupIdsOf(JsonArray groups) {
@@ -465,6 +440,13 @@ class SnapshotCodecTest {
         return ids;
     }
 
+    private static JsonArray nodesOf(PermsGroupsFile file, int index) {
+        return file.groups.get(index)
+            .getAsJsonObject()
+            .get("nodes")
+            .getAsJsonArray();
+    }
+
     private static java.util.List<String> textsOf(JsonArray array) {
         java.util.List<String> texts = new java.util.ArrayList<>();
         for (JsonElement element : array) {
@@ -473,14 +455,24 @@ class SnapshotCodecTest {
         return texts;
     }
 
-    private JsonObject fileWithNodes(String groupId, JsonArray nodes) {
+    private PermsGroupsFile fileWithNodes(String groupId, JsonArray nodes) {
         JsonArray groups = new JsonArray();
         JsonObject group = new JsonObject();
         group.addProperty("id", groupId);
         group.add("nodes", nodes);
         groups.add(group);
-        JsonObject file = new JsonObject();
-        file.add("groups", groups);
+        return fileWithGroups(groups);
+    }
+
+    private PermsGroupsFile fileWithGroups(JsonArray groups) {
+        PermsGroupsFile file = new PermsGroupsFile();
+        file.groups = groups;
+        return file;
+    }
+
+    private PermsGroupsFile fileWithTracks(JsonArray tracks) {
+        PermsGroupsFile file = new PermsGroupsFile();
+        file.tracks = tracks;
         return file;
     }
 

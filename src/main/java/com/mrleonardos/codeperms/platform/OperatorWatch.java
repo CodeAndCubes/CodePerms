@@ -19,6 +19,7 @@ import com.mrleonardos.codeperms.api.model.ChangeCause;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.model.UserRecord;
 import com.mrleonardos.codeperms.api.store.OperationResult;
+import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.store.SingleWriterImpl;
 
@@ -26,13 +27,16 @@ final class OperatorWatch {
 
     private final PermsAdmin admin;
     private final ConfigFile<PermsSettings> settings;
+    private final MainSettings main;
     private final Supplier<Snapshot> snapshots;
     private final Logger log;
     private final Map<UUID, Boolean> answers;
 
-    OperatorWatch(PermsAdmin admin, ConfigFile<PermsSettings> settings, Supplier<Snapshot> snapshots, Logger log) {
+    OperatorWatch(PermsAdmin admin, ConfigFile<PermsSettings> settings, MainSettings main, Supplier<Snapshot> snapshots,
+        Logger log) {
         this.admin = admin;
         this.settings = settings;
+        this.main = main;
         this.snapshots = snapshots;
         this.log = log;
         this.answers = Collections.synchronizedMap(new LinkedHashMap<UUID, Boolean>(16, 0.75f, true) {
@@ -73,16 +77,10 @@ final class OperatorWatch {
     }
 
     private void sync(UUID player, Boolean previous) {
-        PermsSettings config = settings.get();
-        if (!config.applyOps) {
+        if (!settings.get().applyOps) {
             return;
         }
-        String opGroup = config.opGroup;
-        if (opGroup == null || opGroup.trim()
-            .isEmpty()) {
-            return;
-        }
-        String groupId = opGroup.trim()
+        String groupId = main.opGroup()
             .toLowerCase(Locale.ROOT);
         Snapshot snapshot = snapshots.get();
         if (!snapshot.group(groupId)

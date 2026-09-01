@@ -4,8 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +16,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 import com.google.gson.JsonObject;
 import com.mrleonardos.codecore.api.config.ConfigFile;
+import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.util.Scheduler;
+import com.mrleonardos.codeperms.TestConfigs;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.manage.ChangeEvent;
 import com.mrleonardos.codeperms.api.manage.PermissionsListener;
@@ -29,36 +29,37 @@ import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
+import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
-import com.mrleonardos.codeperms.internal.store.CoreJsonImporter;
-import com.mrleonardos.codeperms.internal.store.JsonGroupsStore;
+import com.mrleonardos.codeperms.internal.store.CoreGroupsImporter;
+import com.mrleonardos.codeperms.internal.store.GroupsStore;
 import com.mrleonardos.codeperms.internal.store.JsonPermissionStore;
-import com.mrleonardos.codeperms.internal.store.JsonPlayersStore;
+import com.mrleonardos.codeperms.internal.store.PermsGroupsFile;
+import com.mrleonardos.codeperms.internal.store.PlayersStore;
 import com.mrleonardos.codeperms.internal.store.SingleWriterImpl;
-import com.mrleonardos.codeperms.internal.store.StubConfigService;
 
 class PlatformMaintenanceTest {
 
     private static final Logger LOG = LogManager.getLogger(PlatformMaintenanceTest.class);
-    private static final String CORE_FILE = "{\"groups\": {\"player\": {\"nodes\": [\"codechat.create\"]}}}";
+    private static final String[] CORE_FILE = { "[groups.player]", "nodes = [\"codechat.create\"]" };
 
     @TempDir
     Path root;
 
-    private StubConfigService configs;
+    private ConfigService configs;
     private ConfigFile<PermsSettings> settings;
-    private ConfigFile<JsonObject> groups;
+    private ConfigFile<PermsGroupsFile> groups;
     private ConfigFile<JsonObject> players;
     private ChangeCoalescer coalescer;
     private RecordingListener listener;
 
     @BeforeEach
     void setUp() {
-        configs = new StubConfigService(root);
+        configs = TestConfigs.of(root);
         settings = configs.open(PermsSettings.spec());
-        groups = configs.open(JsonGroupsStore.spec());
-        players = configs.open(JsonPlayersStore.spec());
+        groups = configs.open(GroupsStore.spec());
+        players = configs.open(PlayersStore.spec());
         coalescer = new ChangeCoalescer(LOG);
         listener = new RecordingListener();
         coalescer.register(0, listener);
@@ -107,7 +108,13 @@ class PlatformMaintenanceTest {
 
     @Test
     void reloadKeepsWorkThatWasNotFlushedYet() throws Exception {
-        PermissionStore builtin = new JsonPermissionStore(settings, groups, players, PermsLimits.defaults(), LOG);
+        PermissionStore builtin = new JsonPermissionStore(
+            settings,
+            new MainSettings(configs),
+            groups,
+            players,
+            PermsLimits.defaults(),
+            LOG);
         SingleWriterImpl writer = writer(builtin);
         writer.commit(withGroup(writer.snapshot(), "vip"), batch("vip"));
         assertTrue(writer.unsaved());
@@ -124,7 +131,7 @@ class PlatformMaintenanceTest {
             "перечитывание не имеет права терять несохранённое");
         assertEquals(
             "vip",
-            new JsonGroupsStore(groups, PermsLimits.defaults(), LOG).load()
+            new GroupsStore(groups, PermsLimits.defaults(), LOG).load()
                 .groups()
                 .get(2)
                 .id());
@@ -136,7 +143,7 @@ class PlatformMaintenanceTest {
             groups,
             players,
             writer,
-            new CoreJsonImporter(coreFile, root.resolve("export"), PermsLimits.defaults(), LOG),
+            new CoreGroupsImporter(configs, PermsLimits.defaults(), LOG),
             new DefaultNodes(settings, PermsLimits.defaults(), LOG),
             coalescer);
     }
@@ -153,16 +160,16 @@ class PlatformMaintenanceTest {
         return writer;
     }
 
-    private Path writeCoreFile() throws Exception {
-        Path coreFile = root.resolve("codecore")
-            .resolve("permissions.json");
-        Files.createDirectories(coreFile.getParent());
-        Files.write(coreFile, CORE_FILE.getBytes(StandardCharsets.UTF_8));
+    private Path writeCoreFile() {
+        Path coreFile = TestConfigs.permissions(root)
+            .resolve(CoreGroupsImporter.CORE_FILE);
+        TestConfigs.write(coreFile, CORE_FILE);
         return coreFile;
     }
 
-    private static boolean marked(Path coreFile) throws Exception {
-        return new String(Files.readAllBytes(coreFile), StandardCharsets.UTF_8).contains("codepermsImport");
+    private static boolean marked(Path coreFile) {
+        return TestConfigs.read(coreFile)
+            .contains(CoreGroupsImporter.MARKER_FIELD);
     }
 
     private static Snapshot withGroup(Snapshot current, String groupId) {

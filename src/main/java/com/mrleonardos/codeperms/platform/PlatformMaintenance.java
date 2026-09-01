@@ -13,21 +13,22 @@ import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
 import com.mrleonardos.codeperms.internal.command.PermsMaintenance;
-import com.mrleonardos.codeperms.internal.store.CoreJsonImporter;
+import com.mrleonardos.codeperms.internal.store.CoreGroupsImporter;
+import com.mrleonardos.codeperms.internal.store.PermsGroupsFile;
 import com.mrleonardos.codeperms.internal.store.SingleWriterImpl;
 
 final class PlatformMaintenance implements PermsMaintenance {
 
     private final ConfigFile<PermsSettings> settings;
-    private final ConfigFile<JsonObject> groups;
+    private final ConfigFile<PermsGroupsFile> groups;
     private final ConfigFile<JsonObject> players;
     private final SingleWriterImpl writer;
-    private final CoreJsonImporter importer;
+    private final CoreGroupsImporter importer;
     private final DefaultNodes defaults;
     private final ChangeCoalescer coalescer;
 
-    PlatformMaintenance(ConfigFile<PermsSettings> settings, ConfigFile<JsonObject> groups,
-        ConfigFile<JsonObject> players, SingleWriterImpl writer, CoreJsonImporter importer, DefaultNodes defaults,
+    PlatformMaintenance(ConfigFile<PermsSettings> settings, ConfigFile<PermsGroupsFile> groups,
+        ConfigFile<JsonObject> players, SingleWriterImpl writer, CoreGroupsImporter importer, DefaultNodes defaults,
         ChangeCoalescer coalescer) {
         this.settings = settings;
         this.groups = groups;
@@ -56,7 +57,7 @@ final class PlatformMaintenance implements PermsMaintenance {
 
     @Override
     public OperationResult importFromCore(boolean dryRun, boolean force) {
-        CoreJsonImporter.Result result = importer.run(writer.snapshot(), force, dryRun);
+        CoreGroupsImporter.Result result = importer.run(writer.snapshot(), force, dryRun);
         switch (result.status()) {
             case IMPORTED:
                 if (!result.imported()) {
@@ -107,8 +108,8 @@ final class PlatformMaintenance implements PermsMaintenance {
 
     @Override
     public OperationResult exportToCoreFormat() {
-        CoreJsonImporter.Result result = importer.export(writer.snapshot());
-        if (result.status() == CoreJsonImporter.Status.EXPORTED) {
+        CoreGroupsImporter.Result result = importer.export(writer.snapshot());
+        if (result.status() == CoreGroupsImporter.Status.EXPORTED) {
             return OperationResult.success(report(result.counts()));
         }
         return OperationResult.failure(
@@ -136,7 +137,7 @@ final class PlatformMaintenance implements PermsMaintenance {
         }
     }
 
-    private static String report(CoreJsonImporter.Counts counts) {
+    private static String report(CoreGroupsImporter.Counts counts) {
         StringBuilder text = new StringBuilder();
         append(text, counts.groups(), "group");
         append(text, counts.players(), "player");
