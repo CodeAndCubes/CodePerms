@@ -11,8 +11,8 @@ import java.util.function.Supplier;
 
 import net.minecraft.entity.player.EntityPlayerMP;
 
-import com.mrleonardos.codecore.api.util.PlayerNames;
-import com.mrleonardos.codecore.api.util.Players;
+import com.mrleonardos.codecore.platform.PlayerNames;
+import com.mrleonardos.codecore.platform.Players;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.model.UserRecord;
 

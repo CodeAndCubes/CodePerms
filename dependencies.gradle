@@ -1,5 +1,6 @@
 dependencies {
     compileOnly 'com.mrleonardos.codecore:CodeCore:0.1.0:api'
+    compileOnly 'com.mrleonardos.codecore:CodeCore:0.1.0:platform'
     runtimeOnly 'com.mrleonardos.codecore:CodeCore:0.1.0:dev'
     compileOnly 'com.mrleonardos:codesides:1.0.0'
     testImplementation 'com.mrleonardos:codesides:1.0.0'

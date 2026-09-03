@@ -10,7 +10,7 @@ import net.minecraft.world.World;
 
 import org.apache.logging.log4j.Logger;
 
-import com.mrleonardos.codecore.api.util.Players;
+import com.mrleonardos.codecore.platform.Players;
 import com.mrleonardos.codeperms.api.context.ContextKeys;
 import com.mrleonardos.codeperms.api.context.ContextRegistry;
 import com.mrleonardos.codeperms.api.model.ContextSet;
