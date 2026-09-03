@@ -5,8 +5,6 @@ import java.util.UUID;
 
 import com.mrleonardos.codecore.api.actor.PlayerRef;
 import com.mrleonardos.codecore.api.command.CommandContext;
-import com.mrleonardos.codecore.api.command.CommandSender;
-import com.mrleonardos.codecore.platform.Senders;
 import com.mrleonardos.codeperms.api.model.ContextSet;
 import com.mrleonardos.codeperms.internal.command.PermsSubjects;
 
@@ -22,13 +20,15 @@ final class SenderSubjects implements PermsSubjects {
 
     @Override
     public Optional<UUID> subjectOf(CommandContext context) {
-        return senderOf(context).player()
+        return context.caller()
+            .player()
             .map(PlayerRef::id);
     }
 
     @Override
     public String senderName(CommandContext context) {
-        return senderOf(context).name();
+        return context.caller()
+            .name();
     }
 
     @Override
@@ -39,9 +39,5 @@ final class SenderSubjects implements PermsSubjects {
     @Override
     public ContextSet contexts(UUID player) {
         return contexts.of(player);
-    }
-
-    private static CommandSender senderOf(CommandContext context) {
-        return Senders.of(context.sender());
     }
 }

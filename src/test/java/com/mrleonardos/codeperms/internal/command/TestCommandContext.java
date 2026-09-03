@@ -10,19 +10,32 @@ import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
 
 import com.mrleonardos.codecore.api.command.CommandContext;
+import com.mrleonardos.codecore.api.command.CommandSender;
+import com.mrleonardos.codeperms.TestSenders;
 
 final class TestCommandContext implements CommandContext {
 
     private final Map<String, Object> values = new LinkedHashMap<>();
     private final List<Sent> replies = new ArrayList<>();
+    private CommandSender caller = TestSenders.console();
 
     TestCommandContext set(String name, Object value) {
         values.put(name, value);
         return this;
     }
 
+    TestCommandContext by(CommandSender sender) {
+        caller = sender;
+        return this;
+    }
+
     void put(String name, Object value) {
         values.put(name, value);
+    }
+
+    @Override
+    public CommandSender caller() {
+        return caller;
     }
 
     @Override

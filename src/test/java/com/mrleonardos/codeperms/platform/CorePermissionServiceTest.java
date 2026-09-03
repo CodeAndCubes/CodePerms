@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import com.mrleonardos.codecore.api.command.CommandContext;
 import com.mrleonardos.codecore.api.command.CommandSender;
 import com.mrleonardos.codecore.api.command.SenderKind;
+import com.mrleonardos.codeperms.TestSenders;
 import com.mrleonardos.codeperms.api.model.ContextSet;
 import com.mrleonardos.codeperms.api.model.GroupRecord;
 import com.mrleonardos.codeperms.api.model.NodeEntry;
@@ -39,7 +40,7 @@ class CorePermissionServiceTest {
         CorePermissionService service = service(Snapshot.empty(), reads);
 
         for (SenderKind kind : Arrays.asList(SenderKind.CONSOLE, SenderKind.RCON, SenderKind.COMMAND_BLOCK)) {
-            assertTrue(service.has(StubSender.of(kind), "codechat.create"), kind + " спрашивать не о чем");
+            assertTrue(service.has(TestSenders.of(kind), "codechat.create"), kind + " спрашивать не о чем");
         }
         assertEquals(0, reads.get(), "хранилище не читается для консоли, RCON и командных блоков");
     }
@@ -51,7 +52,7 @@ class CorePermissionServiceTest {
             .user(member(PLAYER, "default"))
             .build();
         CorePermissionService service = service(snapshot, new AtomicInteger());
-        CommandSender sender = StubSender.player(PLAYER);
+        CommandSender sender = TestSenders.player(PLAYER);
 
         assertTrue(service.has(sender, "codechat.channel.global.read"));
         assertFalse(service.has(sender, "economy.pay"));

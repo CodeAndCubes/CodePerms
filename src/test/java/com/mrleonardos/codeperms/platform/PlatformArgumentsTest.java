@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import com.mrleonardos.codecore.api.command.CommandInputException;
 import com.mrleonardos.codecore.api.command.CommandSender;
+import com.mrleonardos.codeperms.TestSenders;
 import com.mrleonardos.codeperms.api.PermsApi;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.GroupRecord;
@@ -29,7 +30,7 @@ class PlatformArgumentsTest {
 
     private static final UUID PLAYER = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final String CATALOG_NODE = "codeperms.test.suggest";
-    private static final CommandSender CONSOLE = StubSender.console();
+    private static final CommandSender CONSOLE = TestSenders.console();
 
     @AfterEach
     void tearDown() {
