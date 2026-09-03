@@ -155,7 +155,7 @@ public final class CodePermsMod {
         lifecycle = new ForgeLifecycle(contexts, operators);
         CodeApi.commands()
             .register(commands.root());
-        return new CorePermissionService(writer::snapshot, resolver, subjects, subjects::playerOf, main::logChecks);
+        return new CorePermissionService(writer::snapshot, resolver, subjects, main::logChecks);
     }
 
     private void audit(ChangeBatch batch) {

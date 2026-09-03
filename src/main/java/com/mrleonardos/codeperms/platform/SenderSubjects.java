@@ -3,10 +3,10 @@ package com.mrleonardos.codeperms.platform;
 import java.util.Optional;
 import java.util.UUID;
 
-import net.minecraft.command.ICommandSender;
-import net.minecraft.entity.player.EntityPlayerMP;
-
+import com.mrleonardos.codecore.api.actor.PlayerRef;
 import com.mrleonardos.codecore.api.command.CommandContext;
+import com.mrleonardos.codecore.api.command.CommandSender;
+import com.mrleonardos.codecore.platform.Senders;
 import com.mrleonardos.codeperms.api.model.ContextSet;
 import com.mrleonardos.codeperms.internal.command.PermsSubjects;
 
@@ -22,14 +22,13 @@ final class SenderSubjects implements PermsSubjects {
 
     @Override
     public Optional<UUID> subjectOf(CommandContext context) {
-        EntityPlayerMP player = context.player();
-        return player == null ? Optional.<UUID>empty() : Optional.of(player.getUniqueID());
+        return senderOf(context).player()
+            .map(PlayerRef::id);
     }
 
     @Override
     public String senderName(CommandContext context) {
-        return context.sender()
-            .getCommandSenderName();
+        return senderOf(context).name();
     }
 
     @Override
@@ -42,7 +41,7 @@ final class SenderSubjects implements PermsSubjects {
         return contexts.of(player);
     }
 
-    UUID playerOf(ICommandSender sender) {
-        return sender instanceof EntityPlayerMP ? ((EntityPlayerMP) sender).getUniqueID() : null;
+    private static CommandSender senderOf(CommandContext context) {
+        return Senders.of(context.sender());
     }
 }

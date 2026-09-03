@@ -5,21 +5,23 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
-
-import net.minecraft.command.ICommandSender;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.junit.jupiter.api.Test;
 
+import com.mrleonardos.codecore.api.actor.PlayerRef;
 import com.mrleonardos.codecore.api.command.CommandContext;
+import com.mrleonardos.codecore.api.command.CommandSender;
+import com.mrleonardos.codecore.api.command.SenderKind;
+import com.mrleonardos.codecore.api.command.SenderPosition;
 import com.mrleonardos.codeperms.api.model.ContextSet;
 import com.mrleonardos.codeperms.api.model.GroupRecord;
 import com.mrleonardos.codeperms.api.model.NodeEntry;
@@ -32,15 +34,16 @@ class CorePermissionServiceTest {
 
     private static final UUID PLAYER = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final long NOW = 20_000L;
-    private static final Function<ICommandSender, UUID> THIS_PLAYER = sender -> PLAYER;
 
     @Test
     void nonPlayerSenderIsAllowedWithoutReadingTheModel() {
         AtomicInteger reads = new AtomicInteger();
-        CorePermissionService service = service(Snapshot.empty(), reads, sender -> null);
+        CorePermissionService service = service(Snapshot.empty(), reads);
 
-        assertTrue(service.has((ICommandSender) null, "codechat.create"));
-        assertEquals(0, reads.get(), "хранилище не читается для консоли и командных блоков");
+        for (SenderKind kind : Arrays.asList(SenderKind.CONSOLE, SenderKind.RCON, SenderKind.COMMAND_BLOCK)) {
+            assertTrue(service.has(StubSender.of(kind), "codechat.create"), kind + " спрашивать не о чем");
+        }
+        assertEquals(0, reads.get(), "хранилище не читается для консоли, RCON и командных блоков");
     }
 
     @Test
@@ -49,10 +52,11 @@ class CorePermissionServiceTest {
             .group(group("default", 0, nodes("codechat.*")))
             .user(member(PLAYER, "default"))
             .build();
-        CorePermissionService service = service(snapshot, new AtomicInteger(), THIS_PLAYER);
+        CorePermissionService service = service(snapshot, new AtomicInteger());
+        CommandSender sender = StubSender.player(PLAYER);
 
-        assertTrue(service.has((ICommandSender) null, "codechat.channel.global.read"));
-        assertFalse(service.has((ICommandSender) null, "economy.pay"));
+        assertTrue(service.has(sender, "codechat.channel.global.read"));
+        assertFalse(service.has(sender, "economy.pay"));
     }
 
     @Test
@@ -61,7 +65,7 @@ class CorePermissionServiceTest {
             .group(group("default", 0, nodes("codechat.*")))
             .user(member(PLAYER, "default", "-codechat.create"))
             .build();
-        CorePermissionService service = service(snapshot, new AtomicInteger(), THIS_PLAYER);
+        CorePermissionService service = service(snapshot, new AtomicInteger());
 
         assertFalse(service.has(PLAYER, "codechat.create"), "личный запрет сильнее группового разрешения");
         assertTrue(service.has(PLAYER, "codechat.channel.global.read"));
@@ -77,8 +81,7 @@ class CorePermissionServiceTest {
         CorePermissionService service = new CorePermissionService(
             () -> snapshot,
             new ResolverImpl(() -> NOW),
-            subjects,
-            THIS_PLAYER);
+            subjects);
 
         assertFalse(service.has(PLAYER, "codechat.format"), "правило другого мира не применяется");
         assertTrue(subjects.reads.get() > 0);
@@ -97,25 +100,19 @@ class CorePermissionServiceTest {
             .defaultGroup("player")
             .build();
 
-        assertEquals(
-            "junior",
-            service(snapshot, new AtomicInteger(), THIS_PLAYER).group(PLAYER),
-            "primary старше веса");
+        assertEquals("junior", service(snapshot, new AtomicInteger()).group(PLAYER), "primary старше веса");
 
         Snapshot withoutPrimary = Snapshot.builder()
             .from(snapshot)
             .user(inGroups(PLAYER, null, "junior", "senior"))
             .build();
-        assertEquals(
-            "senior",
-            service(withoutPrimary, new AtomicInteger(), THIS_PLAYER).group(PLAYER),
-            "без primary решает вес");
+        assertEquals("senior", service(withoutPrimary, new AtomicInteger()).group(PLAYER), "без primary решает вес");
 
         Snapshot stranger = Snapshot.builder()
             .group(group("player", 0, Collections.<NodeEntry>emptyList()))
             .defaultGroup("player")
             .build();
-        assertEquals("player", service(stranger, new AtomicInteger(), THIS_PLAYER).group(PLAYER));
+        assertEquals("player", service(stranger, new AtomicInteger()).group(PLAYER));
     }
 
     @Test
@@ -124,7 +121,7 @@ class CorePermissionServiceTest {
             .group(metaGroup("default", "&7"))
             .user(member(PLAYER, "default"))
             .build();
-        CorePermissionService service = service(snapshot, new AtomicInteger(), THIS_PLAYER);
+        CorePermissionService service = service(snapshot, new AtomicInteger());
 
         assertEquals("&7", service.meta(PLAYER, "prefix", ""));
         assertEquals("none", service.meta(PLAYER, "suffix", "none"));
@@ -146,7 +143,6 @@ class CorePermissionServiceTest {
                 () -> snapshot,
                 new ResolverImpl(() -> NOW),
                 new FixedSubjects(ContextSet.empty()),
-                THIS_PLAYER,
                 () -> true);
 
             assertTrue(service.has(PLAYER, "codechat.create"));
@@ -160,7 +156,6 @@ class CorePermissionServiceTest {
                 () -> snapshot,
                 new ResolverImpl(() -> NOW),
                 new FixedSubjects(ContextSet.empty()),
-                THIS_PLAYER,
                 () -> false);
 
             assertTrue(quiet.has(PLAYER, "codechat.create"));
@@ -169,6 +164,52 @@ class CorePermissionServiceTest {
             log.removeAppender(appender);
             log.setLevel(before);
         }
+    }
+
+    /** Подставной отправитель команды: вид и ссылка на игрока, ни одного типа игры. */
+    private static final class StubSender implements CommandSender {
+
+        private final SenderKind kind;
+        private final PlayerRef player;
+
+        private StubSender(SenderKind kind, PlayerRef player) {
+            this.kind = kind;
+            this.player = player;
+        }
+
+        static CommandSender of(SenderKind kind) {
+            return new StubSender(kind, null);
+        }
+
+        static CommandSender player(UUID id) {
+            return new StubSender(SenderKind.PLAYER, PlayerRef.of(id, "Steve"));
+        }
+
+        @Override
+        public SenderKind kind() {
+            return kind;
+        }
+
+        @Override
+        public Optional<PlayerRef> player() {
+            return Optional.ofNullable(player);
+        }
+
+        @Override
+        public String name() {
+            return player == null ? "Server" : player.name();
+        }
+
+        @Override
+        public Optional<SenderPosition> position() {
+            return Optional.empty();
+        }
+
+        @Override
+        public void reply(String translationKey, Object... arguments) {}
+
+        @Override
+        public void replyError(String translationKey, Object... arguments) {}
     }
 
     /** Подставной приёмник debug-записей: ловит отформатированные сообщения. */
@@ -189,12 +230,11 @@ class CorePermissionServiceTest {
         }
     }
 
-    private CorePermissionService service(Snapshot snapshot, AtomicInteger reads,
-        Function<ICommandSender, UUID> players) {
+    private CorePermissionService service(Snapshot snapshot, AtomicInteger reads) {
         return new CorePermissionService(() -> {
             reads.incrementAndGet();
             return snapshot;
-        }, new ResolverImpl(() -> NOW), new FixedSubjects(ContextSet.empty()), players);
+        }, new ResolverImpl(() -> NOW), new FixedSubjects(ContextSet.empty()));
     }
 
     private static ContextSet world(String name) {
