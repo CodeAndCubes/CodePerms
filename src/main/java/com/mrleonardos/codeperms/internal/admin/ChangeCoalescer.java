@@ -93,7 +93,7 @@ public final class ChangeCoalescer implements PermissionsEvents {
                 try {
                     listener.onChange(event);
                 } catch (RuntimeException | Error failure) {
-                    log.warn("CodePerms listener failed on " + event, failure);
+                    log.warn("CodePerms listener failed on {}", event, failure);
                 }
             }
         }
