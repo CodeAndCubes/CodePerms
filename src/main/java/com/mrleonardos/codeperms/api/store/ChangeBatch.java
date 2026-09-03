@@ -76,6 +76,15 @@ public final class ChangeBatch {
         return (cause.hashCode() * 31 + author.hashCode()) * 31 + changes.hashCode();
     }
 
+    /**
+     * Отладочная запись. Вид не обещан и меняется без предупреждения.
+     *
+     * <p>
+     * Строку аудита из неё собирать нельзя. Аудит переживает обновление мода, админ грепает его в логе,
+     * когда разбирается, кто выдал право, и вид этой строки обещан людям. Поэтому она собирается из
+     * {@link #cause()}, {@link #author()} и {@link #changes()} явно и закреплена тестом, а этот метод
+     * остаётся свободным.
+     */
     @Override
     public String toString() {
         return cause + " by " + author + ": " + changes.size() + " changes";

@@ -19,6 +19,7 @@ import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
+import com.mrleonardos.codeperms.internal.admin.AuditLine;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
 import com.mrleonardos.codeperms.internal.admin.PermsAdminImpl;
 import com.mrleonardos.codeperms.internal.command.DebugView;
@@ -161,7 +162,7 @@ public final class CodePermsMod {
         if (batch.isEmpty() || !main.logChanges()) {
             return;
         }
-        LOG.info("Permission change: {}", batch);
+        LOG.info("Permission change: {}", AuditLine.of(batch));
     }
 
     private void summary() {
