@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import com.mrleonardos.codecore.api.adapter.PermissionCapabilities;
 import com.mrleonardos.codecore.api.adapter.RoleAdapter;
 import com.mrleonardos.codecore.api.adapter.RoleCapability;
 import com.mrleonardos.codecore.api.adapter.RoleOwnerKind;
@@ -14,13 +15,6 @@ import com.mrleonardos.codecore.api.service.PermissionService;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 
 final class PermsRoleAdapter implements RoleAdapter {
-
-    static final RoleCapability HAS = RoleCapability.of("has");
-    static final RoleCapability GROUP = RoleCapability.of("group");
-    static final RoleCapability META = RoleCapability.of("meta");
-    static final RoleCapability CONTEXTS = RoleCapability.of("contexts");
-    static final RoleCapability EXPIRY = RoleCapability.of("expiry");
-    static final RoleCapability TRACKS = RoleCapability.of("tracks");
 
     private final Supplier<PermissionService> assembly;
 
@@ -50,7 +44,14 @@ final class PermsRoleAdapter implements RoleAdapter {
 
     @Override
     public Set<RoleCapability> capabilities() {
-        return new LinkedHashSet<>(Arrays.asList(HAS, GROUP, META, CONTEXTS, EXPIRY, TRACKS));
+        return new LinkedHashSet<>(
+            Arrays.asList(
+                PermissionCapabilities.HAS,
+                PermissionCapabilities.GROUP,
+                PermissionCapabilities.META,
+                PermissionCapabilities.CONTEXTS,
+                PermissionCapabilities.EXPIRY,
+                PermissionCapabilities.TRACKS));
     }
 
     @Override

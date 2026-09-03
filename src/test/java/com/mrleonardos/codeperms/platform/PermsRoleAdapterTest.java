@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.mrleonardos.codecore.api.adapter.RoleCapability;
+import com.mrleonardos.codecore.api.adapter.PermissionCapabilities;
 import com.mrleonardos.codecore.api.adapter.RoleOwnerKind;
 import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.service.PermissionService;
@@ -50,13 +50,14 @@ class PermsRoleAdapterTest {
         assertEquals(
             new LinkedHashSet<>(
                 Arrays.asList(
-                    RoleCapability.of("has"),
-                    RoleCapability.of("group"),
-                    RoleCapability.of("meta"),
-                    RoleCapability.of("contexts"),
-                    RoleCapability.of("expiry"),
-                    RoleCapability.of("tracks"))),
-            adapter.capabilities());
+                    PermissionCapabilities.HAS,
+                    PermissionCapabilities.GROUP,
+                    PermissionCapabilities.META,
+                    PermissionCapabilities.CONTEXTS,
+                    PermissionCapabilities.EXPIRY,
+                    PermissionCapabilities.TRACKS)),
+            adapter.capabilities(),
+            "заявка называет весь перечень роли из codecore-api, своих строк умений у мода нет");
     }
 
     @Test
