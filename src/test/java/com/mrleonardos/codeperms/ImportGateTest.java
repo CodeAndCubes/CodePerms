@@ -16,7 +16,7 @@ class ImportGateTest {
     private static final String[] GATED = { "com/mrleonardos/codeperms/api", "com/mrleonardos/codeperms/internal" };
 
     private static final String[] FORBIDDEN = { "net/minecraft", "net/minecraftforge", "cpw/mods", "io/netty",
-        "org/lwjgl", "com/mojang", "com/mrleonardos/codecore/platform" };
+        "org/lwjgl", "com/mojang", "com/mrleonardos/codecore/platform", "com/mrleonardos/codeperms/platform" };
 
     @Test
     void apiAndInternalHoldNoPlatformTypes() throws IOException {
