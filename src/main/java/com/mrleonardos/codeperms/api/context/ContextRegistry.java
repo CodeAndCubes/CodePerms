@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
+import com.mrleonardos.codecore.api.actor.PlayerRef;
 import com.mrleonardos.codeperms.api.model.ContextSet;
 
 /**
@@ -91,7 +92,7 @@ public final class ContextRegistry {
     }
 
     /**
-     * Собрать пары всех провайдеров для субъекта.
+     * Собрать пары всех провайдеров для игрока.
      *
      * <p>
      * Провайдер, который бросил исключение, пропускается, а его имя и причина уходят в
@@ -100,7 +101,7 @@ public final class ContextRegistry {
      *
      * @param onFailure приёмник имени упавшего провайдера и причины, может быть {@code null}
      */
-    public ContextSet collect(Object subject, BiConsumer<String, RuntimeException> onFailure) {
+    public ContextSet collect(PlayerRef subject, BiConsumer<String, RuntimeException> onFailure) {
         if (providers.isEmpty()) {
             return ContextSet.empty();
         }

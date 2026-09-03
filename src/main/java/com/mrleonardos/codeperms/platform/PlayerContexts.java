@@ -10,6 +10,7 @@ import net.minecraft.world.World;
 
 import org.apache.logging.log4j.Logger;
 
+import com.mrleonardos.codecore.platform.PlayerRefs;
 import com.mrleonardos.codecore.platform.Players;
 import com.mrleonardos.codeperms.api.context.ContextKeys;
 import com.mrleonardos.codeperms.api.context.ContextRegistry;
@@ -69,7 +70,10 @@ final class PlayerContexts {
         builder.put(ContextKeys.DIM, String.valueOf(online.dimension));
         builder.put(ContextKeys.OP, String.valueOf(operators.isOperator(player)));
         builder.putAll(
-            foreign.collect(online, (id, failure) -> log.warn("Context provider {} failed: {}", id, failure.toString()))
+            foreign
+                .collect(
+                    PlayerRefs.of(online),
+                    (id, failure) -> log.warn("Context provider {} failed: {}", id, failure.toString()))
                 .asMap());
         return builder.build();
     }

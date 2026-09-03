@@ -11,12 +11,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.mrleonardos.codecore.api.actor.PlayerRef;
 import com.mrleonardos.codeperms.api.model.ContextSet;
 
 class ContextRegistryTest {
+
+    private static final PlayerRef KNOWN = PlayerRef
+        .of(UUID.fromString("00000000-0000-0000-0000-000000000001"), "Steve");
+    private static final PlayerRef STRANGER = PlayerRef
+        .of(UUID.fromString("00000000-0000-0000-0000-000000000002"), "Alex");
 
     @Test
     void emptyRegistryCollectsNothing() {
@@ -24,7 +31,7 @@ class ContextRegistryTest {
         assertTrue(
             registry.providers()
                 .isEmpty());
-        assertSame(ContextSet.empty(), collect(registry, new Object()));
+        assertSame(ContextSet.empty(), collect(registry, KNOWN));
     }
 
     @Test
@@ -37,7 +44,7 @@ class ContextRegistryTest {
             2,
             registry.providers()
                 .size());
-        ContextSet collected = collect(registry, new Object());
+        ContextSet collected = collect(registry, KNOWN);
         assertEquals(2, collected.specificity());
         assertTrue(
             collected.matches(
@@ -48,10 +55,10 @@ class ContextRegistryTest {
     }
 
     @Test
-    void unknownSubjectYieldsNothing() {
+    void aPlayerTheProviderDoesNotKnowYieldsNothing() {
         ContextRegistry registry = new ContextRegistry();
         registry.register(fixed("clan", "clan.officer", "yes"));
-        assertTrue(collect(registry, null).isEmpty());
+        assertTrue(collect(registry, STRANGER).isEmpty());
     }
 
     @Test
@@ -65,7 +72,7 @@ class ContextRegistryTest {
             }
 
             @Override
-            public Map<String, String> collect(Object subject) {
+            public Map<String, String> collect(PlayerRef subject) {
                 throw new IllegalStateException("the clan database is down");
             }
         });
@@ -77,14 +84,14 @@ class ContextRegistryTest {
             }
 
             @Override
-            public Map<String, String> collect(Object subject) {
+            public Map<String, String> collect(PlayerRef subject) {
                 return null;
             }
         });
         registry.register(fixed("rank", "rank.level", "5"));
 
         List<String> failed = new ArrayList<>();
-        ContextSet collected = registry.collect(new Object(), (id, failure) -> failed.add(id));
+        ContextSet collected = registry.collect(KNOWN, (id, failure) -> failed.add(id));
 
         assertEquals(Collections.singletonList("broken"), failed);
         assertTrue(
@@ -142,18 +149,18 @@ class ContextRegistryTest {
             }
 
             @Override
-            public Map<String, String> collect(Object subject) {
+            public Map<String, String> collect(PlayerRef subject) {
                 return pairs;
             }
         });
         assertTrue(
-            collect(registry, new Object()).matches(
+            collect(registry, KNOWN).matches(
                 ContextSet.builder()
                     .put("clan.officer", "yes")
                     .build()));
     }
 
-    private static ContextSet collect(ContextRegistry registry, Object subject) {
+    private static ContextSet collect(ContextRegistry registry, PlayerRef subject) {
         return registry.collect(
             subject,
             (id, failure) -> { throw new AssertionError("Provider " + id + " was not expected to fail", failure); });
@@ -168,8 +175,9 @@ class ContextRegistryTest {
             }
 
             @Override
-            public Map<String, String> collect(Object subject) {
-                if (subject == null) {
+            public Map<String, String> collect(PlayerRef subject) {
+                if (!KNOWN.id()
+                    .equals(subject.id())) {
                     return new HashMap<>();
                 }
                 Map<String, String> pairs = new HashMap<>();
