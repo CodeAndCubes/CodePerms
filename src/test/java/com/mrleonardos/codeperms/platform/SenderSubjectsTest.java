@@ -6,9 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.util.Optional;
 import java.util.UUID;
 
-import net.minecraft.command.ICommandSender;
-import net.minecraft.entity.player.EntityPlayerMP;
-
 import org.junit.jupiter.api.Test;
 
 import com.mrleonardos.codecore.api.command.CommandContext;
@@ -72,16 +69,6 @@ class SenderSubjectsTest {
         @Override
         public CommandSender caller() {
             return caller;
-        }
-
-        @Override
-        public ICommandSender sender() {
-            throw new UnsupportedOperationException("отправителя спрашивают через caller()");
-        }
-
-        @Override
-        public EntityPlayerMP player() {
-            throw new UnsupportedOperationException("ссылку на игрока спрашивают через caller().player()");
         }
 
         @Override

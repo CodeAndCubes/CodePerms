@@ -6,9 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import net.minecraft.command.ICommandSender;
-import net.minecraft.entity.player.EntityPlayerMP;
-
 import com.mrleonardos.codecore.api.command.CommandContext;
 import com.mrleonardos.codecore.api.command.CommandSender;
 import com.mrleonardos.codeperms.TestSenders;
@@ -36,16 +33,6 @@ final class TestCommandContext implements CommandContext {
     @Override
     public CommandSender caller() {
         return caller;
-    }
-
-    @Override
-    public ICommandSender sender() {
-        return null;
-    }
-
-    @Override
-    public EntityPlayerMP player() {
-        return null;
     }
 
     @Override

@@ -16,8 +16,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import net.minecraft.command.ICommandSender;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Test;
@@ -130,11 +128,6 @@ class PermsRoleAdapterTest {
 
         @Override
         public boolean has(UUID player, String node) {
-            return false;
-        }
-
-        @Override
-        public boolean has(ICommandSender sender, String node) {
             return false;
         }
 

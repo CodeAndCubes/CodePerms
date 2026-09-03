@@ -5,11 +5,7 @@ import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-import net.minecraft.command.ICommandSender;
-
-import com.mrleonardos.codecore.api.command.CommandSender;
 import com.mrleonardos.codecore.api.service.PermissionService;
-import com.mrleonardos.codecore.platform.Senders;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.resolve.Resolution;
 import com.mrleonardos.codeperms.internal.command.PermsSubjects;
@@ -41,12 +37,6 @@ public final class CorePermissionService implements PermissionService {
             CodePermsMod.LOG.debug("Permission check of node {} for {}: {}", node, player, resolution);
         }
         return resolution.allowed();
-    }
-
-    @Override
-    public boolean has(ICommandSender sender, String node) {
-        CommandSender author = Senders.of(sender);
-        return author == null || has(author, node);
     }
 
     @Override
