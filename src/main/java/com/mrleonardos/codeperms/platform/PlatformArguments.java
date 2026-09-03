@@ -6,10 +6,9 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-import net.minecraft.command.CommandException;
-import net.minecraft.command.ICommandSender;
-
 import com.mrleonardos.codecore.api.command.ArgumentType;
+import com.mrleonardos.codecore.api.command.CommandInputException;
+import com.mrleonardos.codecore.api.command.CommandSender;
 import com.mrleonardos.codeperms.api.PermsApi;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.Snapshot;
@@ -37,13 +36,13 @@ final class PlatformArguments implements PermsArguments {
             @Override
             public String parse(String raw) {
                 if (!limits.acceptsGroupId(raw)) {
-                    throw new CommandException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
+                    throw new CommandInputException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
                 }
                 return normalize(raw);
             }
 
             @Override
-            public List<String> suggestions(ICommandSender sender, String partial) {
+            public List<String> suggestions(CommandSender sender, String partial) {
                 return startingWith(
                     snapshots.get()
                         .groups()
@@ -60,13 +59,13 @@ final class PlatformArguments implements PermsArguments {
             @Override
             public String parse(String raw) {
                 if (!limits.acceptsTrackName(raw)) {
-                    throw new CommandException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
+                    throw new CommandInputException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
                 }
                 return normalize(raw);
             }
 
             @Override
-            public List<String> suggestions(ICommandSender sender, String partial) {
+            public List<String> suggestions(CommandSender sender, String partial) {
                 return startingWith(
                     snapshots.get()
                         .tracks()
@@ -85,13 +84,13 @@ final class PlatformArguments implements PermsArguments {
                 UUID player = names.id(raw)
                     .orElse(null);
                 if (player == null) {
-                    throw new CommandException(PermsMessages.FAILURE_NOT_FOUND, raw);
+                    throw new CommandInputException(PermsMessages.FAILURE_NOT_FOUND, raw);
                 }
                 return player;
             }
 
             @Override
-            public List<String> suggestions(ICommandSender sender, String partial) {
+            public List<String> suggestions(CommandSender sender, String partial) {
                 return names.suggest(partial, SUGGESTION_LIMIT);
             }
         };
@@ -104,13 +103,13 @@ final class PlatformArguments implements PermsArguments {
             @Override
             public String parse(String raw) {
                 if (!limits.acceptsNode(raw)) {
-                    throw new CommandException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
+                    throw new CommandInputException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
                 }
                 return raw;
             }
 
             @Override
-            public List<String> suggestions(ICommandSender sender, String partial) {
+            public List<String> suggestions(CommandSender sender, String partial) {
                 return PermsApi.catalog()
                     .suggest(partial, SUGGESTION_LIMIT);
             }
