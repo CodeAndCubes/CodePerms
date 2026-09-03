@@ -1,17 +1,16 @@
 package com.mrleonardos.codeperms.platform;
 
-import net.minecraft.entity.player.EntityPlayerMP;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.mrleonardos.codecore.api.CodeApi;
+import com.mrleonardos.codecore.api.actor.PlayerRef;
 import com.mrleonardos.codecore.api.config.ConfigFile;
 import com.mrleonardos.codecore.api.config.ConfigRoles;
 import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.service.PermissionService;
 import com.mrleonardos.codecore.api.util.Scheduler;
-import com.mrleonardos.codecore.platform.Players;
+import com.mrleonardos.codecore.platform.PlayerRefs;
 import com.mrleonardos.codeperms.Tags;
 import com.mrleonardos.codeperms.api.PermsApi;
 import com.mrleonardos.codeperms.api.PermsLimits;
@@ -78,8 +77,8 @@ public final class CodePermsMod {
         PermsApi.freeze();
         writer.start();
         contexts.clear();
-        for (EntityPlayerMP player : Players.allOnline()) {
-            operators.onJoin(player.getUniqueID());
+        for (PlayerRef player : PlayerRefs.allOnline()) {
+            operators.onJoin(player.id());
         }
         if (!listening) {
             listening = true;
