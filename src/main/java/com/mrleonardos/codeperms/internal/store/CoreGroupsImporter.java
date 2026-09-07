@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -71,10 +70,16 @@ public final class CoreGroupsImporter {
         this.log = log;
     }
 
+    /**
+     * Файл ядра описан чужим: мы его читаем, а не ведём. Ядро тогда не создаёт его за нас, не
+     * дописывает в него свои поля и не отодвигает нечитаемый в {@code .broken}, поэтому импорт не
+     * трогает источник до тех пор, пока его не пометят перенесённым.
+     */
     public static ConfigSpec<CoreGroupsView> spec() {
         return ConfigSpec.of(CORE_MODID, CORE_NAME, CoreGroupsView.class)
             .role(ConfigRoles.PERMISSIONS)
             .scope(ConfigScope.SETTINGS)
+            .foreign()
             .build();
     }
 
@@ -155,14 +160,9 @@ public final class CoreGroupsImporter {
         return new Result(Status.EXPORTED, counts, false, null, null, null);
     }
 
+    /** Прочитать файл ядра. Нечитаемый остаётся на месте: за него отвечает признак чужого файла. */
     private CoreGroupsView read() {
-        FileTime before = modified(coreFile);
         ConfigFile<CoreGroupsView> opened = opened();
-        FileTime after = modified(coreFile);
-        if (before != null && !before.equals(after)) {
-            restore();
-            return null;
-        }
         return opened.loaded() ? opened.get() : null;
     }
 
@@ -173,28 +173,6 @@ public final class CoreGroupsImporter {
         }
         file.reload();
         return file;
-    }
-
-    private void restore() {
-        Path broken = coreFile.resolveSibling(coreFile.getFileName() + ".broken");
-        if (!Files.isRegularFile(broken)) {
-            log.error("Core permission file {} was replaced while it was read", coreFile);
-            return;
-        }
-        try {
-            Files.move(broken, coreFile, StandardCopyOption.REPLACE_EXISTING);
-            log.warn("Core permission file {} is not readable, it was left as it was", coreFile);
-        } catch (IOException failure) {
-            log.error("Core permission file {} was not put back: {}", coreFile, failure.toString());
-        }
-    }
-
-    private static FileTime modified(Path path) {
-        try {
-            return Files.getLastModifiedTime(path);
-        } catch (IOException absent) {
-            return null;
-        }
     }
 
     private List<GroupRecord> readGroups(CoreGroupsView view, Counts counts) {

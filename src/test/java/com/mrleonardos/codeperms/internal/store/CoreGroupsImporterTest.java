@@ -337,13 +337,16 @@ class CoreGroupsImporterTest {
     @Test
     void markerKeepsTheValuesAndTheCommentsOfTheSource() {
         writeSource(FIXTURE);
-        TestConfigs.write(source(), "# файл завёл админ\n" + TestConfigs.read(source()));
+        TestConfigs.write(
+            source(),
+            TestConfigs.read(source())
+                .replace("[groups.player]", "# файл завёл админ\n[groups.player]"));
         CoreGroupsImporter importer = importer();
 
         importer.mark(importer.run(Snapshot.empty(), false, false));
 
         String written = TestConfigs.read(source());
-        assertTrue(written.contains("# файл завёл админ"), "строки человека остаются на месте");
+        assertTrue(written.contains("# файл завёл админ"), "строки человека остаются на месте: " + written);
         assertTrue(written.contains("codechat.create"), "значения секций остаются на месте");
         assertTrue(
             written.indexOf("[groups.player]") < written.indexOf("[groups.admin]"),
