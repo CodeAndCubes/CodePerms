@@ -1,0 +1,63 @@
+# Выпуск собирается тем же путём, что и обычная сборка: соседи линейки кладутся в локальный maven из
+# своих репозиториев, потом собирается мод. Тег вида v1.0.0 создаёт релиз и прикладывает к нему файлы.
+
+name: Выпуск
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Собрать и выложить
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: mod
+      - uses: actions/checkout@v4
+        with:
+          repository: CodeAndCubes/CodeSides
+          token: ${{ secrets.LINEUP_TOKEN }}
+          path: CodeSides
+      - uses: actions/checkout@v4
+        with:
+          repository: CodeAndCubes/CodeCore
+          token: ${{ secrets.LINEUP_TOKEN }}
+          path: CodeCore
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x mod/gradlew CodeSides/gradlew CodeCore/gradlew
+      - name: Инструмент разделения сторон в локальный maven
+        run: ./gradlew publishToMavenLocal -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
+        working-directory: CodeSides
+      - name: Ядро линейки в локальный maven
+        run: ./gradlew publishToMavenLocal -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
+        working-directory: CodeCore
+      - name: Сборка
+        run: ./gradlew build --stacktrace
+        working-directory: mod
+      - name: Байткод обязан читаться на Java 8
+        run: python3 mod/.github/check-bytecode.py mod/build/libs
+      - name: Отобрать файлы выпуска
+        run: bash mod/.github/collect-release.sh mod release
+      - name: Выложить
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          extra=""
+          case "$tag" in *beta*|*alpha*|*rc*) extra="--prerelease" ;; esac
+          gh release create "$tag" release/*.jar \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$tag" \
+            --notes-file mod/.github/release-notes.md \
+            $extra
