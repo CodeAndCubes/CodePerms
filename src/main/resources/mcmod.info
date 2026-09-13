@@ -6,7 +6,7 @@
 		"description": "Права доступа группами, треками и контекстами: наследование, временные выдачи, хранение в json и команды /perms.",
 		"version": "${modVersion}",
 		"mcversion": "${minecraftVersion}",
-		"url": "",
+		"url": "https://github.com/CodeAndCubes/CodePerms",
 		"updateUrl": "",
 		"authorList": ["MrLeonardos"],
 		"credits": "",
