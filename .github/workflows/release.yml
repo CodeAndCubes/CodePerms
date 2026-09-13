@@ -1,6 +1,6 @@
-# Выпуск собирается тем же путём, что и обычная сборка: соседи линейки кладутся в локальный maven из
-# своих репозиториев, потом собирается мод. Тег вида v1.0.0 создаёт релиз и прикладывает к нему файлы.
-
+# Сборка мода собирает сначала соседей линейки: инструмент разделения сторон и ядро живут в
+# отдельных репозиториях и в локальном maven, публичного зеркала у них нет. Репозитории открытые,
+# поэтому ключ для этого не нужен.
 name: Выпуск
 
 on:
@@ -21,12 +21,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: CodeAndCubes/CodeSides
-          token: ${{ secrets.LINEUP_TOKEN }}
           path: CodeSides
       - uses: actions/checkout@v4
         with:
           repository: CodeAndCubes/CodeCore
-          token: ${{ secrets.LINEUP_TOKEN }}
           path: CodeCore
       - uses: actions/setup-java@v4
         with:

@@ -1,7 +1,6 @@
-# Сборка мода собирает сначала соседей линейки: инструмент разделения сторон и ядро живут в
-# отдельных репозиториях и в локальном maven, публичного зеркала у них нет. Чтобы CI мог их достать,
-# организации нужен секрет LINEUP_TOKEN: токен с правом читать репозитории CodeAndCubes.
-# Без секрета сборка не краснеет, а пропускается со строкой в сводке.
+# Сборка мода собирает сначала соседей линейки: инструмент разделения сторон и ядро живут в отдельных
+# репозиториях и в локальном maven, публичного зеркала у них нет. Репозитории открытые, поэтому ключ
+# для этого не нужен.
 name: Сборка
 
 on:
@@ -11,27 +10,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  ready:
-    name: Ключ к соседним репозиториям
-    runs-on: ubuntu-latest
-    outputs:
-      token: ${{ steps.check.outputs.token }}
-    steps:
-      - id: check
-        env:
-          LINEUP_TOKEN: ${{ secrets.LINEUP_TOKEN }}
-        run: |
-          if [ -n "$LINEUP_TOKEN" ]; then
-            echo "token=yes" >> "$GITHUB_OUTPUT"
-          else
-            echo "token=no" >> "$GITHUB_OUTPUT"
-            echo "Секрета LINEUP_TOKEN нет, соседние репозитории линейки не достать: сборка пропущена." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
   build:
     name: Сборка на JDK 25
-    needs: ready
-    if: needs.ready.outputs.token == 'yes'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,12 +20,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: CodeAndCubes/CodeSides
-          token: ${{ secrets.LINEUP_TOKEN }}
           path: CodeSides
       - uses: actions/checkout@v4
         with:
           repository: CodeAndCubes/CodeCore
-          token: ${{ secrets.LINEUP_TOKEN }}
           path: CodeCore
       - uses: actions/setup-java@v4
         with:
@@ -75,8 +53,6 @@ jobs:
 
   tests:
     name: Тесты на JDK ${{ matrix.java }}
-    needs: ready
-    if: needs.ready.outputs.token == 'yes'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -89,12 +65,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: CodeAndCubes/CodeSides
-          token: ${{ secrets.LINEUP_TOKEN }}
           path: CodeSides
       - uses: actions/checkout@v4
         with:
           repository: CodeAndCubes/CodeCore
-          token: ${{ secrets.LINEUP_TOKEN }}
           path: CodeCore
       - uses: actions/setup-java@v4
         with:
