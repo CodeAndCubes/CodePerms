@@ -1,21 +1,21 @@
-.gradle/
-build/
-out/
-bin/
-.idea/
+/.gradle/
+/build/
+/out/
+/bin/
+/.idea/
 *.iml
 *.ipr
 *.iws
 .classpath
 .project
-.settings/
-.vscode/
-run/
-openspec/
+/.settings/
+/.vscode/
+/run/
+/openspec/
 *.md
 !README.md
 !perms.md
 # Файлы рядом с кодом это код, а не проектные заметки: векторы тестов и прочие данные
 # обязаны ехать в репозиторий.
 !src/**/*.md
-logs/
+/logs/
