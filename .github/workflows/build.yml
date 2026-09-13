@@ -74,7 +74,7 @@ jobs:
             !mod/build/libs/*-sources.jar
 
   tests:
-    name: Тесты на JDK ${ matrix.java }
+    name: Тесты на JDK ${{ matrix.java }}
     needs: ready
     if: needs.ready.outputs.token == 'yes'
     runs-on: ubuntu-latest
@@ -112,7 +112,7 @@ jobs:
         working-directory: CodeCore
       - name: Тесты
         run: >-
-          ./gradlew test -PtestJdk=${ matrix.java }
-          -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_${ matrix.java }_X64,JAVA_HOME_21_X64,JAVA_HOME_25_X64
+          ./gradlew test -PtestJdk=${{ matrix.java }}
+          -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_${{ matrix.java }}_X64,JAVA_HOME_21_X64,JAVA_HOME_25_X64
           --stacktrace
         working-directory: mod
