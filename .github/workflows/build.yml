@@ -1,3 +1,7 @@
+# Сборка мода собирает сначала соседей линейки: инструмент разделения сторон и ядро живут в
+# отдельных репозиториях и в локальном maven, публичного зеркала у них нет. Чтобы CI мог их достать,
+# организации нужен секрет LINEUP_TOKEN: токен с правом читать репозитории CodeAndCubes.
+# Без секрета сборка не краснеет, а пропускается со строкой в сводке.
 name: Сборка
 
 on:
@@ -7,30 +11,72 @@ on:
   workflow_dispatch:
 
 jobs:
+  ready:
+    name: Ключ к соседним репозиториям
+    runs-on: ubuntu-latest
+    outputs:
+      token: ${{ steps.check.outputs.token }}
+    steps:
+      - id: check
+        env:
+          LINEUP_TOKEN: ${{ secrets.LINEUP_TOKEN }}
+        run: |
+          if [ -n "$LINEUP_TOKEN" ]; then
+            echo "token=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "token=no" >> "$GITHUB_OUTPUT"
+            echo "Секрета LINEUP_TOKEN нет, соседние репозитории линейки не достать: сборка пропущена." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   build:
     name: Сборка на JDK 25
+    needs: ready
+    if: needs.ready.outputs.token == 'yes'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: mod
+      - uses: actions/checkout@v4
+        with:
+          repository: CodeAndCubes/CodeSides
+          token: ${{ secrets.LINEUP_TOKEN }}
+          path: CodeSides
+      - uses: actions/checkout@v4
+        with:
+          repository: CodeAndCubes/CodeCore
+          token: ${{ secrets.LINEUP_TOKEN }}
+          path: CodeCore
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 25
+          java-version: |
+            21
+            25
       - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew
+      - run: chmod +x mod/gradlew CodeSides/gradlew CodeCore/gradlew
+      - name: Инструмент разделения сторон в локальный maven
+        run: ./gradlew publishToMavenLocal -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
+        working-directory: CodeSides
+      - name: Ядро линейки в локальный maven
+        run: ./gradlew publishToMavenLocal -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
+        working-directory: CodeCore
       - name: Форматирование и сборка
         run: ./gradlew spotlessCheck build --stacktrace
+        working-directory: mod
       - name: Байткод обязан быть восьмым
-        run: python3 .github/check-bytecode.py build/libs
+        run: python3 mod/.github/check-bytecode.py mod/build/libs
       - uses: actions/upload-artifact@v4
         with:
           name: jars
           path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
+            mod/build/libs/*.jar
+            !mod/build/libs/*-sources.jar
 
   tests:
-    name: Тесты на JDK ${{ matrix.java }}
+    name: Тесты на JDK ${ matrix.java }
+    needs: ready
+    if: needs.ready.outputs.token == 'yes'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -38,16 +84,35 @@ jobs:
         java: [ 8, 21, 25 ]
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: mod
+      - uses: actions/checkout@v4
+        with:
+          repository: CodeAndCubes/CodeSides
+          token: ${{ secrets.LINEUP_TOKEN }}
+          path: CodeSides
+      - uses: actions/checkout@v4
+        with:
+          repository: CodeAndCubes/CodeCore
+          token: ${{ secrets.LINEUP_TOKEN }}
+          path: CodeCore
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: |
-            ${{ matrix.java }}
+            21
             25
       - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew
+      - run: chmod +x mod/gradlew CodeSides/gradlew CodeCore/gradlew
+      - name: Инструмент разделения сторон в локальный maven
+        run: ./gradlew publishToMavenLocal -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
+        working-directory: CodeSides
+      - name: Ядро линейки в локальный maven
+        run: ./gradlew publishToMavenLocal -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64
+        working-directory: CodeCore
       - name: Тесты
         run: >-
-          ./gradlew test -PtestJdk=${{ matrix.java }}
-          -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_${{ matrix.java }}_X64
+          ./gradlew test -PtestJdk=${ matrix.java }
+          -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_${ matrix.java }_X64,JAVA_HOME_21_X64,JAVA_HOME_25_X64
           --stacktrace
+        working-directory: mod
