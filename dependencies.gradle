@@ -1,12 +1,12 @@
 dependencies {
-    compileOnly 'com.mrleonardos.codecore:CodeCore:1.0.0:api'
-    compileOnly 'com.mrleonardos.codecore:CodeCore:1.0.0:platform'
-    runtimeOnly 'com.mrleonardos.codecore:CodeCore:1.0.0:dev'
-    compileOnly 'com.mrleonardos:codesides:1.0.0'
-    testImplementation 'com.mrleonardos:codesides:1.0.0'
+    compileOnly 'com.mrleonardos.codecore:CodeCore:1.1.0:api'
+    compileOnly 'com.mrleonardos.codecore:CodeCore:1.1.0:platform'
+    runtimeOnly 'com.mrleonardos.codecore:CodeCore:1.1.0:dev'
+    compileOnly 'com.mrleonardos:codesides:1.1.0'
+    testImplementation 'com.mrleonardos:codesides:1.1.0'
 
-    testCompileOnly 'com.mrleonardos.codecore:CodeCore:1.0.0:api'
-    testRuntimeOnly 'com.mrleonardos.codecore:CodeCore:1.0.0:dev'
+    testCompileOnly 'com.mrleonardos.codecore:CodeCore:1.1.0:api'
+    testRuntimeOnly 'com.mrleonardos.codecore:CodeCore:1.1.0:dev'
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
