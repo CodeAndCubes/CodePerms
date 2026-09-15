@@ -2,7 +2,7 @@ import org.gradle.api.tasks.bundling.AbstractArchiveTask
 
 plugins {
 	id("com.gtnewhorizons.gtnhconvention")
-	id("com.mrleonardos.codesides") version "1.0.0"
+	id("com.mrleonardos.codesides") version "1.1.0"
 }
 
 codeSides {
