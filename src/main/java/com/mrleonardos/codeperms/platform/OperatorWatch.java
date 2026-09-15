@@ -3,7 +3,6 @@ package com.mrleonardos.codeperms.platform;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -60,6 +59,41 @@ final class OperatorWatch {
         return known.booleanValue();
     }
 
+    /**
+     * Сверить закешированный статус оператора с фактическим. События смены op в 1.7.10 нет, поэтому
+     * {@code /op} посреди сессии узнаётся здесь: расхождение обновляет группу и просит контексты
+     * пересобраться. Сверка стоит поиска игрока в списке онлайн и проверки его профиля в таблице
+     * операторов, поэтому контексты зовут её только когда в снимке есть контекстные правила: серверы
+     * без них получают прежний бесплатный путь. Оффлайн-игрока сверка не трогает: его фактический
+     * статус неизвестен, пока он не зашёл, и кеш отвечает за него сам.
+     *
+     * @return правда ли статус изменился и кеш контекстов устарел
+     */
+    boolean syncIfOutdated(UUID player) {
+        Boolean known;
+        synchronized (answers) {
+            known = answers.get(player);
+        }
+        if (known == null) {
+            return false;
+        }
+        EntityPlayerMP online = onlineOf(player);
+        if (online == null) {
+            return false;
+        }
+        boolean actual = MinecraftServer.getServer()
+            .getConfigurationManager()
+            .func_152596_g(online.getGameProfile());
+        if (actual == known.booleanValue()) {
+            return false;
+        }
+        synchronized (answers) {
+            answers.put(player, Boolean.valueOf(actual));
+        }
+        sync(player, known);
+        return true;
+    }
+
     void onJoin(UUID player) {
         Boolean previous;
         synchronized (answers) {
@@ -80,8 +114,7 @@ final class OperatorWatch {
         if (!settings.get().applyOps) {
             return;
         }
-        String groupId = main.opGroup()
-            .toLowerCase(Locale.ROOT);
+        String groupId = main.opGroup();
         Snapshot snapshot = snapshots.get();
         if (!snapshot.group(groupId)
             .isPresent()) {
@@ -119,19 +152,25 @@ final class OperatorWatch {
     }
 
     private static boolean onServerList(UUID playerId) {
+        EntityPlayerMP online = onlineOf(playerId);
+        return online != null && MinecraftServer.getServer()
+            .getConfigurationManager()
+            .func_152596_g(online.getGameProfile());
+    }
+
+    private static EntityPlayerMP onlineOf(UUID playerId) {
         MinecraftServer server = MinecraftServer.getServer();
         if (server == null || server.getConfigurationManager() == null) {
-            return false;
+            return null;
         }
         List<?> online = server.getConfigurationManager().playerEntityList;
         for (Object candidate : online) {
             EntityPlayerMP player = (EntityPlayerMP) candidate;
             if (player.getUniqueID()
                 .equals(playerId)) {
-                return server.getConfigurationManager()
-                    .func_152596_g(player.getGameProfile());
+                return player;
             }
         }
-        return false;
+        return null;
     }
 }

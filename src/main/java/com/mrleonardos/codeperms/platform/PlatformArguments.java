@@ -21,9 +21,9 @@ final class PlatformArguments implements PermsArguments {
 
     private final NameResolver names;
     private final Supplier<Snapshot> snapshots;
-    private final PermsLimits limits;
+    private final Supplier<PermsLimits> limits;
 
-    PlatformArguments(NameResolver names, Supplier<Snapshot> snapshots, PermsLimits limits) {
+    PlatformArguments(NameResolver names, Supplier<Snapshot> snapshots, Supplier<PermsLimits> limits) {
         this.names = names;
         this.snapshots = snapshots;
         this.limits = limits;
@@ -35,7 +35,8 @@ final class PlatformArguments implements PermsArguments {
 
             @Override
             public String parse(String raw) {
-                if (!limits.acceptsGroupId(raw)) {
+                if (!limits.get()
+                    .acceptsGroupId(raw)) {
                     throw new CommandInputException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
                 }
                 return normalize(raw);
@@ -58,7 +59,8 @@ final class PlatformArguments implements PermsArguments {
 
             @Override
             public String parse(String raw) {
-                if (!limits.acceptsTrackName(raw)) {
+                if (!limits.get()
+                    .acceptsTrackName(raw)) {
                     throw new CommandInputException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
                 }
                 return normalize(raw);
@@ -102,7 +104,8 @@ final class PlatformArguments implements PermsArguments {
 
             @Override
             public String parse(String raw) {
-                if (!limits.acceptsNode(raw)) {
+                if (!limits.get()
+                    .acceptsNode(raw)) {
                     throw new CommandInputException(PermsMessages.FAILURE_LIMIT_REACHED, raw);
                 }
                 return raw;
@@ -114,6 +117,11 @@ final class PlatformArguments implements PermsArguments {
                     .suggest(partial, SUGGESTION_LIMIT);
             }
         };
+    }
+
+    @Override
+    public ArgumentType<Long> expiry() {
+        return PermsArguments.expiryType();
     }
 
     private static String normalize(String raw) {

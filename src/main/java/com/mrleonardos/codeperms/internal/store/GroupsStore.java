@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import org.apache.logging.log4j.Logger;
 
@@ -22,7 +23,7 @@ import com.mrleonardos.codeperms.internal.PermsSettings;
 public final class GroupsStore {
 
     private final ConfigFile<PermsGroupsFile> file;
-    private final PermsLimits limits;
+    private final Supplier<PermsLimits> limits;
     private final Logger log;
 
     private volatile SnapshotCodec.Quarantine quarantine = SnapshotCodec.Quarantine.empty();
@@ -40,20 +41,20 @@ public final class GroupsStore {
             .build();
     }
 
-    public GroupsStore(ConfigFile<PermsGroupsFile> file, PermsLimits limits, Logger log) {
+    public GroupsStore(ConfigFile<PermsGroupsFile> file, Supplier<PermsLimits> limits, Logger log) {
         this.file = file;
         this.limits = limits;
         this.log = log;
     }
 
     public SnapshotCodec.DecodedGroups load() {
-        SnapshotCodec.DecodedGroups decoded = new SnapshotCodec(limits).readGroups(file.get(), log);
+        SnapshotCodec.DecodedGroups decoded = new SnapshotCodec(limits.get()).readGroups(file.get(), log);
         quarantine = decoded.quarantine();
         return decoded;
     }
 
     public void save(List<GroupRecord> groups, List<TrackRecord> tracks) {
-        new SnapshotCodec(limits).writeGroups(file.get(), groups, tracks, quarantine);
+        new SnapshotCodec(limits.get()).writeGroups(file.get(), groups, tracks, quarantine);
         file.save();
     }
 

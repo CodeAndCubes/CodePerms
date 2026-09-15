@@ -45,8 +45,17 @@ public final class OperationResult {
          */
         TIMEOUT,
 
+        /**
+         * Правка построена на устаревшем снимке: пока она шла до хранилища, модель ушла вперёд.
+         * Хранилище не тронуто, повтор на свежем снимке безопасен.
+         */
+        STALE_SNAPSHOT,
+
         /** Хранилище не смогло применить правку, модель остаётся на последнем снимке. */
-        PROVIDER_FAILED
+        PROVIDER_FAILED,
+
+        /** Источник импорта не читается: файл битый или недоступен, правка не начиналась. */
+        UNREADABLE_SOURCE
     }
 
     private static final OperationResult SUCCESS = new OperationResult(null, null);

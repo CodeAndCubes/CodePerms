@@ -370,7 +370,7 @@ class CoreGroupsImporterTest {
     }
 
     private CoreGroupsImporter importer() {
-        return new CoreGroupsImporter(TestConfigs.of(root), PermsLimits.defaults(), LOG);
+        return new CoreGroupsImporter(TestConfigs.of(root), () -> PermsLimits.defaults(), LOG);
     }
 
     private Path source() {

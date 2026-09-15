@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -22,6 +23,7 @@ import com.mrleonardos.codeperms.api.model.ContextSet;
 import com.mrleonardos.codeperms.api.model.GroupRecord;
 import com.mrleonardos.codeperms.api.model.NodeEntry;
 import com.mrleonardos.codeperms.api.model.Snapshot;
+import com.mrleonardos.codeperms.api.model.TrackRecord;
 import com.mrleonardos.codeperms.api.model.UserRecord;
 
 class SnapshotCodecTest {
@@ -354,6 +356,111 @@ class SnapshotCodecTest {
 
         assertEquals(1, decoded.dropped());
         assertEquals(Arrays.asList("codechat.one", "codechat..broken"), textsOf(nodesOf(file, "vip")));
+    }
+
+    @Test
+    void nodeWithAnUnusableContextIsQuarantinedAndKeepsTheLoadAlive() {
+        JsonArray nodes = new JsonArray();
+        JsonObject broken = new JsonObject();
+        broken.addProperty("node", "codechat.format");
+        JsonObject contexts = new JsonObject();
+        contexts.addProperty("   ", "nether");
+        broken.add("contexts", contexts);
+        nodes.add(broken);
+        nodes.add(new JsonPrimitive("codechat.create"));
+        PermsGroupsFile file = fileWithNodes("vip", nodes);
+
+        SnapshotCodec.DecodedGroups decoded = codec.readGroups(file, LOG);
+
+        assertEquals(
+            Arrays.asList("codechat.create"),
+            nodes(
+                decoded.groups()
+                    .get(0)
+                    .nodes()));
+        assertEquals(1, decoded.dropped());
+
+        codec.writeGroups(file, decoded.groups(), decoded.tracks(), decoded.quarantine());
+
+        JsonArray written = nodesOf(file, "vip");
+        assertEquals(2, written.size(), "запись с кривым контекстом остаётся в файле");
+        assertTrue(
+            written.get(1)
+                .isJsonObject()
+                && written.get(1)
+                    .getAsJsonObject()
+                    .has("contexts"));
+    }
+
+    @Test
+    void liveGroupWinsOverAQuarantinedKey() {
+        PermsGroupsFile file = new PermsGroupsFile();
+        file.groups.addProperty("vip", "мусор");
+        SnapshotCodec.DecodedGroups decoded = codec.readGroups(file, LOG);
+        assertEquals(
+            1,
+            decoded.quarantine()
+                .records());
+
+        codec.writeGroups(file, Arrays.asList(PermsFixtures.group("vip", 5)), decoded.tracks(), decoded.quarantine());
+
+        assertTrue(
+            file.groups.get("vip")
+                .isJsonObject(),
+            "живая группа не даёт карантину себя затереть");
+    }
+
+    @Test
+    void liveTrackWinsOverAQuarantinedKey() {
+        PermsGroupsFile file = new PermsGroupsFile();
+        file.tracks.addProperty("main", "мусор");
+        SnapshotCodec.DecodedGroups decoded = codec.readGroups(file, LOG);
+
+        codec.writeGroups(
+            file,
+            decoded.groups(),
+            Arrays.asList(TrackRecord.of("main", Arrays.asList("player"))),
+            decoded.quarantine());
+
+        assertTrue(
+            file.tracks.get("main")
+                .isJsonObject(),
+            "живой трек не даёт карантину себя затереть");
+    }
+
+    @Test
+    void liveMetaWinsOverAQuarantinedKey() {
+        JsonObject meta = new JsonObject();
+        meta.add("prefix", new JsonArray());
+        JsonObject group = new JsonObject();
+        group.addProperty("id", "vip");
+        group.add("meta", meta);
+        JsonArray groups = new JsonArray();
+        groups.add(group);
+        PermsGroupsFile file = fileWithGroups(groups);
+
+        SnapshotCodec.DecodedGroups decoded = codec.readGroups(file, LOG);
+        assertEquals(1, decoded.dropped());
+
+        Map<String, String> live = new LinkedHashMap<>();
+        live.put("prefix", "&7");
+        codec.writeGroups(
+            file,
+            Arrays.asList(
+                GroupRecord
+                    .of("vip", "", 5, Collections.<String>emptyList(), Collections.<NodeEntry>emptyList(), live)),
+            decoded.tracks(),
+            decoded.quarantine());
+
+        JsonObject written = file.groups.get("vip")
+            .getAsJsonObject()
+            .get("meta")
+            .getAsJsonObject();
+        assertEquals(
+            "&7",
+            written.get("prefix")
+                .getAsString(),
+            "легальная мета не затирается карантинной");
     }
 
     @Test

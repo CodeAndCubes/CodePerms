@@ -1,6 +1,7 @@
 package com.mrleonardos.codeperms.api.resolve;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,6 +40,13 @@ class NodePatternsTest {
         assertThrows(NullPointerException.class, () -> NodePatterns.matches(null, "codechat"));
         assertThrows(NullPointerException.class, () -> NodePatterns.matches("codechat", null));
         assertThrows(NullPointerException.class, () -> NodePatterns.specificity(null));
+    }
+
+    @Test
+    void trailingSeparatorDoesNotMatchTheShorterNode() {
+        assertFalse(NodePatterns.matches("codechat.", "codechat"));
+        assertTrue(NodePatterns.matches("codechat.", "codechat."));
+        assertEquals(2, NodePatterns.specificity("codechat."));
     }
 
     private static List<Vector> readVectors() {

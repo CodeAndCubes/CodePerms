@@ -106,7 +106,7 @@ class StoreTest {
             OperationResult.success()
                 .failure()
                 .isPresent());
-        assertEquals(9, OperationResult.Failure.values().length);
+        assertEquals(11, OperationResult.Failure.values().length);
 
         OperationResult refusal = OperationResult.failure(OperationResult.Failure.NOT_FOUND, "нет группы vip");
         assertFalse(refusal.successful());

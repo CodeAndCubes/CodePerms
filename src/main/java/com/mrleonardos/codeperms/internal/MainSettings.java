@@ -1,5 +1,7 @@
 package com.mrleonardos.codeperms.internal;
 
+import java.util.Locale;
+
 import com.mrleonardos.codecore.api.config.AuditSettings;
 import com.mrleonardos.codecore.api.config.ConfigRoles;
 import com.mrleonardos.codecore.api.config.ConfigService;
@@ -65,7 +67,8 @@ public final class MainSettings {
         if (value == null) {
             return fallback;
         }
-        String trimmed = value.trim();
+        String trimmed = value.trim()
+            .toLowerCase(Locale.ROOT);
         return trimmed.isEmpty() ? fallback : trimmed;
     }
 }

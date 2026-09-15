@@ -66,6 +66,8 @@ public final class PermsMessages {
     public static final String IMPORT_DONE = "codeperms.message.import.done";
     public static final String IMPORT_DRY = "codeperms.message.import.dry";
     public static final String IMPORT_CHANGED = "codeperms.message.import.changed";
+    public static final String IMPORT_UNREADABLE = "codeperms.message.import.unreadable";
+    public static final String IMPORT_NOTHING = "codeperms.message.import.nothing";
     public static final String EXPORT_DONE = "codeperms.message.export.done";
     public static final String RELOAD_DONE = "codeperms.message.reload.done";
 
@@ -83,8 +85,34 @@ public final class PermsMessages {
     public static final String FAILURE_INHERITANCE_CYCLE = "codeperms.message.failure.inheritance_cycle";
     public static final String FAILURE_IN_USE = "codeperms.message.failure.in_use";
     public static final String FAILURE_TIMEOUT = "codeperms.message.failure.timeout";
+    public static final String FAILURE_STALE = "codeperms.message.failure.stale_snapshot";
     public static final String FAILURE_UNSUPPORTED = "codeperms.message.failure.unsupported";
     public static final String FAILURE_PROVIDER = "codeperms.message.failure.provider";
+
+    public static final String NODE_ME = "codeperms.node.me";
+    public static final String NODE_GROUP_LIST = "codeperms.node.group.list";
+    public static final String NODE_GROUP_INFO = "codeperms.node.group.info";
+    public static final String NODE_GROUP_CREATE = "codeperms.node.group.create";
+    public static final String NODE_GROUP_DELETE = "codeperms.node.group.delete";
+    public static final String NODE_GROUP_RENAME = "codeperms.node.group.rename";
+    public static final String NODE_GROUP_COPY = "codeperms.node.group.copy";
+    public static final String NODE_GROUP_WEIGHT = "codeperms.node.group.setweight";
+    public static final String NODE_GROUP_EDIT = "codeperms.node.group.edit";
+    public static final String NODE_PLAYER_INFO = "codeperms.node.player.info";
+    public static final String NODE_PLAYER_SET_GROUP = "codeperms.node.player.setgroup";
+    public static final String NODE_PLAYER_ADD_GROUP = "codeperms.node.player.addgroup";
+    public static final String NODE_PLAYER_REMOVE_GROUP = "codeperms.node.player.rmgroup";
+    public static final String NODE_PLAYER_NODE = "codeperms.node.player.node";
+    public static final String NODE_PLAYER_META = "codeperms.node.player.meta";
+    public static final String NODE_PLAYER_CLEANUP = "codeperms.node.player.cleanup";
+    public static final String NODE_TRACK_LIST = "codeperms.node.track.list";
+    public static final String NODE_TRACK_INFO = "codeperms.node.track.info";
+    public static final String NODE_TRACK_PROMOTE = "codeperms.node.track.promote";
+    public static final String NODE_TRACK_DEMOTE = "codeperms.node.track.demote";
+    public static final String NODE_IMPORT = "codeperms.node.import";
+    public static final String NODE_EXPORT = "codeperms.node.export";
+    public static final String NODE_RELOAD = "codeperms.node.reload";
+    public static final String NODE_DEBUG = "codeperms.node.debug";
 
     private PermsMessages() {}
 }

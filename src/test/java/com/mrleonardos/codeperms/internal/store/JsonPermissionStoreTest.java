@@ -342,12 +342,12 @@ class JsonPermissionStoreTest {
     }
 
     private JsonPermissionStore storeOf(ConfigService configs) {
+        configs.open(PermsSettings.spec());
         return new JsonPermissionStore(
-            configs.open(PermsSettings.spec()),
             new MainSettings(configs),
             configs.open(GroupsStore.spec()),
             configs.open(PlayersStore.spec()),
-            PermsLimits.defaults(),
+            () -> PermsLimits.defaults(),
             LOG);
     }
 }

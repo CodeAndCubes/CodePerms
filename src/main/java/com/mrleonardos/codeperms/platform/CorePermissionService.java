@@ -34,7 +34,14 @@ public final class CorePermissionService implements PermissionService {
     public boolean has(UUID player, String node) {
         Resolution resolution = resolver.resolve(snapshots.get(), player, node, subjects.contexts(player));
         if (logChecks.getAsBoolean()) {
-            CodePermsMod.LOG.debug("Permission check of node {} for {}: {}", node, player, resolution);
+            CodePermsMod.LOG.debug(
+                "Permission check of node {} for {}: {}, {} candidate(s)",
+                node,
+                player,
+                resolution.allowed() ? "allowed" : "denied",
+                Integer.valueOf(
+                    resolution.candidates()
+                        .size()));
         }
         return resolution.allowed();
     }

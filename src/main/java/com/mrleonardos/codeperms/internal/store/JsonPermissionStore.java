@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.apache.logging.log4j.Logger;
 
@@ -19,13 +20,11 @@ import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
 import com.mrleonardos.codeperms.internal.MainSettings;
-import com.mrleonardos.codeperms.internal.PermsSettings;
 
 public final class JsonPermissionStore implements PermissionStore {
 
     public static final String ID = "json";
 
-    private final ConfigFile<PermsSettings> settings;
     private final MainSettings main;
     private final GroupsStore groups;
     private final PlayersStore players;
@@ -33,9 +32,8 @@ public final class JsonPermissionStore implements PermissionStore {
 
     private volatile Snapshot state;
 
-    public JsonPermissionStore(ConfigFile<PermsSettings> settings, MainSettings main,
-        ConfigFile<PermsGroupsFile> groupsFile, ConfigFile<JsonObject> playersFile, PermsLimits limits, Logger log) {
-        this.settings = settings;
+    public JsonPermissionStore(MainSettings main, ConfigFile<PermsGroupsFile> groupsFile,
+        ConfigFile<JsonObject> playersFile, Supplier<PermsLimits> limits, Logger log) {
         this.main = main;
         this.groups = new GroupsStore(groupsFile, limits, log);
         this.players = new PlayersStore(playersFile, limits, log);
@@ -49,7 +47,6 @@ public final class JsonPermissionStore implements PermissionStore {
 
     @Override
     public Snapshot load() {
-        SnapshotCodec codec = new SnapshotCodec(ceilings());
         SnapshotCodec.DecodedGroups decodedGroups = groups.load();
         SnapshotCodec.DecodedPlayers decodedPlayers = players.load();
         if (decodedGroups.dropped() > 0) {
@@ -101,11 +98,6 @@ public final class JsonPermissionStore implements PermissionStore {
             builder.user(user);
         }
         return builder.build();
-    }
-
-    private PermsLimits ceilings() {
-        return settings.get()
-            .ceilings(log);
     }
 
     static Snapshot patch(Snapshot current, ChangeBatch batch) {

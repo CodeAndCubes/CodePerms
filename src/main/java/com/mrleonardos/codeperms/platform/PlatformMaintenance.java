@@ -10,6 +10,7 @@ import com.mrleonardos.codeperms.api.manage.ChangeEvent;
 import com.mrleonardos.codeperms.api.store.Change;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
+import com.mrleonardos.codeperms.internal.Ceilings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
 import com.mrleonardos.codeperms.internal.command.PermsMaintenance;
@@ -26,10 +27,11 @@ final class PlatformMaintenance implements PermsMaintenance {
     private final CoreGroupsImporter importer;
     private final DefaultNodes defaults;
     private final ChangeCoalescer coalescer;
+    private final Ceilings ceilings;
 
     PlatformMaintenance(ConfigFile<PermsSettings> settings, ConfigFile<PermsGroupsFile> groups,
         ConfigFile<JsonObject> players, SingleWriterImpl writer, CoreGroupsImporter importer, DefaultNodes defaults,
-        ChangeCoalescer coalescer) {
+        ChangeCoalescer coalescer, Ceilings ceilings) {
         this.settings = settings;
         this.groups = groups;
         this.players = players;
@@ -37,12 +39,14 @@ final class PlatformMaintenance implements PermsMaintenance {
         this.importer = importer;
         this.defaults = defaults;
         this.coalescer = coalescer;
+        this.ceilings = ceilings;
     }
 
     @Override
     public OperationResult reload() {
         OperationResult reloaded = writer.reload(() -> {
             settings.reload();
+            ceilings.refresh();
             groups.reload();
             players.reload();
         });
@@ -50,53 +54,44 @@ final class PlatformMaintenance implements PermsMaintenance {
             return reloaded;
         }
         defaults.refresh();
-        return OperationResult.success(
-            writer.snapshot()
-                .toString());
+        return OperationResult.success();
     }
 
     @Override
-    public OperationResult importFromCore(boolean dryRun, boolean force) {
+    public PermsMaintenance.Outcome importFromCore(boolean dryRun, boolean force) {
         CoreGroupsImporter.Result result = importer.run(writer.snapshot(), force, dryRun);
         switch (result.status()) {
             case IMPORTED:
                 if (!result.imported()) {
-                    return OperationResult.success(report(result.counts()));
+                    return new PermsMaintenance.Outcome(OperationResult.success(), result.counts());
                 }
                 OperationResult applied = writer.commit(result.snapshot(), result.batch());
                 if (!applied.successful()) {
-                    return applied;
+                    return new PermsMaintenance.Outcome(applied, result.counts());
                 }
                 if (!importer.mark(result)) {
-                    return markerFailure();
+                    return new PermsMaintenance.Outcome(markerFailure(), result.counts());
                 }
                 record(result.batch());
-                return OperationResult.success(report(result.counts()));
+                return new PermsMaintenance.Outcome(OperationResult.success(), result.counts());
             case NOTHING_TO_DO:
                 if (!result.dryRun() && !importer.mark(result)) {
-                    return markerFailure();
+                    return new PermsMaintenance.Outcome(markerFailure(), result.counts());
                 }
-                return OperationResult.success("nothing to import");
+                return new PermsMaintenance.Outcome(OperationResult.success(), result.counts());
             case SOURCE_MISSING:
-                return OperationResult.failure(
-                    OperationResult.Failure.NOT_FOUND,
-                    importer.coreFile()
-                        .toString());
+                return new PermsMaintenance.Outcome(sourceMissing(), result.counts());
             case SOURCE_CHANGED:
-                return OperationResult.failure(
-                    OperationResult.Failure.INVALID_VALUE,
-                    importer.coreFile()
-                        .toString() + " changed since the last import");
+                return new PermsMaintenance.Outcome(sourceChanged(), result.counts());
             case SOURCE_UNREADABLE:
-                return OperationResult.failure(
-                    OperationResult.Failure.INVALID_VALUE,
-                    importer.coreFile()
-                        .toString() + " is not readable");
+                return new PermsMaintenance.Outcome(sourceUnreadable(), result.counts());
             default:
-                return OperationResult.failure(
-                    OperationResult.Failure.UNSUPPORTED,
-                    result.status()
-                        .name());
+                return new PermsMaintenance.Outcome(
+                    OperationResult.failure(
+                        OperationResult.Failure.UNSUPPORTED,
+                        result.status()
+                            .name()),
+                    result.counts());
         }
     }
 
@@ -106,16 +101,38 @@ final class PlatformMaintenance implements PermsMaintenance {
             "the change was applied, but the import marker was not written");
     }
 
+    private OperationResult sourceMissing() {
+        return OperationResult.failure(
+            OperationResult.Failure.NOT_FOUND,
+            importer.coreFile()
+                .toString());
+    }
+
+    private OperationResult sourceChanged() {
+        return OperationResult.failure(
+            OperationResult.Failure.INVALID_VALUE,
+            importer.coreFile() + " changed since the last import, repeat the import from scratch");
+    }
+
+    private OperationResult sourceUnreadable() {
+        return OperationResult.failure(
+            OperationResult.Failure.UNREADABLE_SOURCE,
+            importer.coreFile()
+                .toString());
+    }
+
     @Override
-    public OperationResult exportToCoreFormat() {
+    public PermsMaintenance.Outcome exportToCoreFormat() {
         CoreGroupsImporter.Result result = importer.export(writer.snapshot());
         if (result.status() == CoreGroupsImporter.Status.EXPORTED) {
-            return OperationResult.success(report(result.counts()));
+            return new PermsMaintenance.Outcome(OperationResult.success(), result.counts());
         }
-        return OperationResult.failure(
-            OperationResult.Failure.PROVIDER_FAILED,
-            result.status()
-                .name());
+        return new PermsMaintenance.Outcome(
+            OperationResult.failure(
+                OperationResult.Failure.PROVIDER_FAILED,
+                result.status()
+                    .name()),
+            result.counts());
     }
 
     private void record(ChangeBatch batch) {
@@ -134,30 +151,6 @@ final class PlatformMaintenance implements PermsMaintenance {
         if (!players.isEmpty()) {
             coalescer.record(ChangeEvent.of(ChangeEvent.Kind.NODES, players, batch.cause()));
             coalescer.record(ChangeEvent.of(ChangeEvent.Kind.MEMBERSHIP, players, batch.cause()));
-        }
-    }
-
-    private static String report(CoreGroupsImporter.Counts counts) {
-        StringBuilder text = new StringBuilder();
-        append(text, counts.groups(), "group");
-        append(text, counts.players(), "player");
-        append(text, counts.nodes(), "node");
-        append(text, counts.meta(), "meta value");
-        return text.length() == 0 ? "nothing" : text.toString();
-    }
-
-    private static void append(StringBuilder text, int count, String what) {
-        if (count == 0) {
-            return;
-        }
-        if (text.length() > 0) {
-            text.append(", ");
-        }
-        text.append(count)
-            .append(' ')
-            .append(what);
-        if (count > 1) {
-            text.append('s');
         }
     }
 }

@@ -37,6 +37,7 @@ import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
 import com.mrleonardos.codeperms.internal.admin.PermsAdminImpl;
 import com.mrleonardos.codeperms.internal.engine.ResolverImpl;
+import com.mrleonardos.codeperms.internal.store.CoreGroupsImporter;
 import com.mrleonardos.codeperms.internal.store.SingleWriter;
 
 class PermsCommandsTest {
@@ -62,7 +63,7 @@ class PermsCommandsTest {
         commands = new PermsCommands(
             writer,
             admin,
-            PermsLimits.defaults(),
+            () -> PermsLimits.defaults(),
             arguments(),
             subjects,
             maintenance,
@@ -283,6 +284,8 @@ class PermsCommandsTest {
 
     @Test
     void importFlagsReachTheMaintenance() {
+        maintenance.counts.groups = 2;
+        maintenance.counts.players = 1;
         TestCommandContext dry = new TestCommandContext().set("flags", "--dry-run");
         execute(child(commands.root(), "import"), dry);
 
@@ -298,6 +301,14 @@ class PermsCommandsTest {
         assertTrue(
             forced.last()
                 .is(PermsMessages.IMPORT_DONE));
+
+        maintenance.counts.groups = 0;
+        maintenance.counts.players = 0;
+        TestCommandContext empty = new TestCommandContext();
+        execute(child(commands.root(), "import"), empty);
+        assertTrue(
+            empty.last()
+                .is(PermsMessages.IMPORT_NOTHING));
 
         TestCommandContext broken = new TestCommandContext().set("flags", "--bogus");
         execute(child(commands.root(), "import"), broken);
@@ -581,6 +592,11 @@ class PermsCommandsTest {
             public ArgumentType<String> node() {
                 return raw -> raw;
             }
+
+            @Override
+            public ArgumentType<Long> expiry() {
+                return PermsArguments.expiryType();
+            }
         };
     }
 
@@ -639,6 +655,7 @@ class PermsCommandsTest {
     private static final class RecordingMaintenance implements PermsMaintenance {
 
         private OperationResult result = OperationResult.success();
+        private CoreGroupsImporter.Counts counts = new CoreGroupsImporter.Counts();
         private boolean dryRun;
         private boolean force;
         private boolean reloaded;
@@ -650,15 +667,15 @@ class PermsCommandsTest {
         }
 
         @Override
-        public OperationResult importFromCore(boolean dryRun, boolean force) {
+        public Outcome importFromCore(boolean dryRun, boolean force) {
             this.dryRun = dryRun;
             this.force = force;
-            return result;
+            return new Outcome(result, counts);
         }
 
         @Override
-        public OperationResult exportToCoreFormat() {
-            return result;
+        public Outcome exportToCoreFormat() {
+            return new Outcome(result, counts);
         }
     }
 

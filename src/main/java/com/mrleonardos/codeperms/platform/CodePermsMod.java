@@ -13,16 +13,17 @@ import com.mrleonardos.codecore.api.util.Scheduler;
 import com.mrleonardos.codecore.platform.PlayerRefs;
 import com.mrleonardos.codeperms.Tags;
 import com.mrleonardos.codeperms.api.PermsApi;
-import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.manage.ChangeEvent;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
+import com.mrleonardos.codeperms.internal.Ceilings;
 import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.admin.AuditLine;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
 import com.mrleonardos.codeperms.internal.admin.PermsAdminImpl;
 import com.mrleonardos.codeperms.internal.command.DebugView;
+import com.mrleonardos.codeperms.internal.command.PermsCatalog;
 import com.mrleonardos.codeperms.internal.command.PermsCommands;
 import com.mrleonardos.codeperms.internal.engine.ResolverImpl;
 import com.mrleonardos.codeperms.internal.store.CoreGroupsImporter;
@@ -56,6 +57,7 @@ public final class CodePermsMod {
     private CoreGroupsImporter importer;
     private ForgeLifecycle lifecycle;
     private boolean listening;
+    private boolean complainedAboutStorage;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -65,7 +67,26 @@ public final class CodePermsMod {
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         CodeApi.adapters()
-            .offer(new PermsRoleAdapter(this::assemble));
+            .offer(new PermsRoleAdapter(this::assemble, this::storageSeamReady));
+    }
+
+    /**
+     * Занято ли имя провайдера хранилища из секции {@code [storage]} главного файла. Незанятое имя
+     * выключает мод целиком: заявка на роль отступает, права остаются на встроенной реализации ядра.
+     */
+    private boolean storageSeamReady() {
+        String configured = new MainSettings(CodeApi.configs()).provider();
+        if (SingleWriterImpl.storageRegistered(configured, PermsApi::store)) {
+            return true;
+        }
+        if (!complainedAboutStorage) {
+            complainedAboutStorage = true;
+            LOG.warn(
+                "Storage seam [storage] provider names \"{}\", which no mod has registered;"
+                    + " CodePerms steps aside and the core builtin permissions keep answering",
+                configured);
+        }
+        return false;
     }
 
     @Mod.EventHandler
@@ -110,16 +131,16 @@ public final class CodePermsMod {
 
         main = new MainSettings(configs);
         settings = configs.open(PermsSettings.spec());
-        PermsLimits limits = settings.get()
-            .ceilings(LOG);
-        DefaultNodes defaults = new DefaultNodes(settings, limits, LOG);
+        Ceilings ceilings = new Ceilings(settings, LOG);
+        DefaultNodes defaults = new DefaultNodes(settings, ceilings, LOG);
         defaults.refresh();
+        PermsCatalog.registerOwnNodes(PermsApi.catalog());
 
         threads = new ServerThreads(scheduler);
-        writer = SingleWriterImpl.create(configs, main, threads, LOG);
+        writer = SingleWriterImpl.create(configs, main, ceilings, threads, LOG);
         ChangeCoalescer coalescer = new ChangeCoalescer(LOG);
         ResolverImpl resolver = new ResolverImpl(System::currentTimeMillis, defaults);
-        PermsAdminImpl admin = new PermsAdminImpl(writer, coalescer, limits, resolver);
+        PermsAdminImpl admin = new PermsAdminImpl(writer, coalescer, ceilings, resolver);
         PermsApi.install(admin, coalescer);
         writer.sink((batch, events) -> {
             audit(batch);
@@ -133,7 +154,7 @@ public final class CodePermsMod {
         NameResolver names = new NameResolver(writer::snapshot);
         SenderSubjects subjects = new SenderSubjects(names, contexts);
 
-        importer = new CoreGroupsImporter(configs, limits, LOG);
+        importer = new CoreGroupsImporter(configs, ceilings, LOG);
         PlatformMaintenance maintenance = new PlatformMaintenance(
             settings,
             configs.open(GroupsStore.spec()),
@@ -141,13 +162,14 @@ public final class CodePermsMod {
             writer,
             importer,
             defaults,
-            coalescer);
+            coalescer,
+            ceilings);
 
         PermsCommands commands = new PermsCommands(
             writer,
             admin,
-            limits,
-            new PlatformArguments(names, writer::snapshot, limits),
+            ceilings,
+            new PlatformArguments(names, writer::snapshot, ceilings),
             subjects,
             maintenance,
             new DebugView(resolver));

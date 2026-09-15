@@ -350,7 +350,13 @@ public final class SnapshotCodec {
             return null;
         }
         boolean value = booleanOf(data.get(VALUE), true);
-        ContextSet contexts = readContexts(data.get(CONTEXTS));
+        ContextSet contexts;
+        try {
+            contexts = readContexts(data.get(CONTEXTS));
+        } catch (RuntimeException failure) {
+            warn(log, "Node {} holds an unusable context and was skipped: {}", node, failure.getMessage());
+            return null;
+        }
         long expiresAt = longOf(data.get(EXPIRES_AT));
         return parseNode(value ? node : DENY_PREFIX + node, contexts, expiresAt, log);
     }
@@ -433,7 +439,9 @@ public final class SnapshotCodec {
             encoded.add(group.id(), data);
         }
         for (Map.Entry<String, JsonElement> held : quarantine.groups.entrySet()) {
-            encoded.add(held.getKey(), held.getValue());
+            if (!encoded.has(held.getKey())) {
+                encoded.add(held.getKey(), held.getValue());
+            }
         }
         return encoded;
     }
@@ -446,7 +454,9 @@ public final class SnapshotCodec {
             encoded.add(track.name(), data);
         }
         for (Map.Entry<String, JsonElement> held : quarantine.tracks.entrySet()) {
-            encoded.add(held.getKey(), held.getValue());
+            if (!encoded.has(held.getKey())) {
+                encoded.add(held.getKey(), held.getValue());
+            }
         }
         return encoded;
     }
@@ -508,7 +518,9 @@ public final class SnapshotCodec {
         JsonObject spare = quarantine.meta.get(subject);
         if (spare != null) {
             for (Map.Entry<String, JsonElement> entry : spare.entrySet()) {
-                encoded.add(entry.getKey(), entry.getValue());
+                if (!encoded.has(entry.getKey())) {
+                    encoded.add(entry.getKey(), entry.getValue());
+                }
             }
         }
         if (encoded.entrySet()

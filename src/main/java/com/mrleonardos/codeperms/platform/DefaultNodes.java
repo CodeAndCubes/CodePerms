@@ -14,11 +14,11 @@ import com.mrleonardos.codeperms.internal.PermsSettings;
 final class DefaultNodes implements Supplier<List<NodeEntry>> {
 
     private final ConfigFile<PermsSettings> settings;
-    private final PermsLimits limits;
+    private final Supplier<PermsLimits> limits;
     private final Logger log;
     private volatile List<NodeEntry> parsed = Collections.emptyList();
 
-    DefaultNodes(ConfigFile<PermsSettings> settings, PermsLimits limits, Logger log) {
+    DefaultNodes(ConfigFile<PermsSettings> settings, Supplier<PermsLimits> limits, Logger log) {
         this.settings = settings;
         this.limits = limits;
         this.log = log;
@@ -32,6 +32,6 @@ final class DefaultNodes implements Supplier<List<NodeEntry>> {
     void refresh() {
         parsed = Collections.unmodifiableList(
             settings.get()
-                .parsedDefaultNodes(limits, log));
+                .parsedDefaultNodes(limits.get(), log));
     }
 }

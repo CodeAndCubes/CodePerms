@@ -17,13 +17,13 @@ import com.mrleonardos.codecore.api.config.ConfigFile;
 import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.util.Scheduler;
 import com.mrleonardos.codeperms.api.PermsApi;
-import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.manage.ChangeEvent;
 import com.mrleonardos.codeperms.api.model.ChangeCause;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
+import com.mrleonardos.codeperms.internal.Ceilings;
 import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.engine.ExpiryHeap;
@@ -60,16 +60,14 @@ public final class SingleWriterImpl implements SingleWriter {
     private volatile Thread writer;
     private volatile PermissionStore resolved;
 
-    public static SingleWriterImpl create(ConfigService configs, MainSettings main, Scheduler scheduler, Logger log) {
+    public static SingleWriterImpl create(ConfigService configs, MainSettings main, Ceilings ceilings,
+        Scheduler scheduler, Logger log) {
         ConfigFile<PermsSettings> settings = configs.open(PermsSettings.spec());
-        PermsSettings config = settings.get();
-        PermsLimits limits = config.ceilings(log);
         PermissionStore builtin = new JsonPermissionStore(
-            settings,
             main,
             configs.open(GroupsStore.spec()),
             configs.open(PlayersStore.spec()),
-            limits,
+            ceilings,
             log);
         return new SingleWriterImpl(
             builtin,
@@ -79,7 +77,14 @@ public final class SingleWriterImpl implements SingleWriter {
             log,
             System::currentTimeMillis,
             main.autosaveTicks(),
-            config.scanTicks());
+            settings.get()
+                .scanTicks());
+    }
+
+    /** Занято ли имя шва хранилища: встроенное json или провайдер из реестра. От этого зависит заявка на роль. */
+    public static boolean storageRegistered(String configured, Lookup lookup) {
+        return JsonPermissionStore.ID.equals(configured) || lookup.store(configured)
+            .isPresent();
     }
 
     static PermissionStore resolveProvider(String configured, Lookup lookup, PermissionStore builtin, Logger log) {
@@ -88,10 +93,13 @@ public final class SingleWriterImpl implements SingleWriter {
             log.info("Permissions storage provider is {}", configured);
             return foreign.get();
         }
-        if (!JsonPermissionStore.ID.equals(configured)) {
-            log.warn("Storage provider {} is not registered, falling back to {}", configured, JsonPermissionStore.ID);
+        if (JsonPermissionStore.ID.equals(configured)) {
+            return builtin;
         }
-        return builtin;
+        throw new IllegalStateException(
+            "Storage provider " + configured
+                + " from [storage] provider is not registered;"
+                + " the role claim had to refuse this name, check the seam check on the adapter");
     }
 
     public SingleWriterImpl(PermissionStore store, Scheduler scheduler, Logger log, LongSupplier clock,
@@ -281,6 +289,18 @@ public final class SingleWriterImpl implements SingleWriter {
         OperationResult applied;
         lock.lock();
         try {
+            Snapshot live = current;
+            if (live != null && next.revision() != live.revision() + 1L) {
+                log.warn(
+                    "Change was built on revision {} while the model holds {}, it is refused",
+                    Long.valueOf(next.revision() - 1L),
+                    Long.valueOf(live.revision()));
+                return OperationResult.failure(
+                    OperationResult.Failure.STALE_SNAPSHOT,
+                    "the change was built on revision " + (next.revision() - 1L)
+                        + " while the model holds "
+                        + live.revision());
+            }
             if (watch.check(clock.getAsLong())) {
                 log.warn(
                     "System clock jumped by more than {} ms, timed permissions may expire early",
@@ -288,7 +308,13 @@ public final class SingleWriterImpl implements SingleWriter {
             }
             OperationResult stored = provider().apply(batch);
             if (!stored.successful()) {
-                log.warn("Provider {} refused the change: {}", provider().id(), stored);
+                log.warn(
+                    "Provider {} refused the change: {} {}",
+                    provider().id(),
+                    stored.failure()
+                        .orElse(null),
+                    stored.message()
+                        .orElse(""));
                 return stored;
             }
             current = next;
@@ -344,9 +370,26 @@ public final class SingleWriterImpl implements SingleWriter {
         }
         lock.lock();
         try {
+            Snapshot live = current;
+            if (live != null && pruned.snapshot.revision() != live.revision() + 1L) {
+                log.warn(
+                    "Expiry was built on revision {} while the model holds {}, it waits for the next scan",
+                    Long.valueOf(pruned.snapshot.revision() - 1L),
+                    Long.valueOf(live.revision()));
+                return OperationResult.failure(
+                    OperationResult.Failure.STALE_SNAPSHOT,
+                    "expiry was built on revision " + (pruned.snapshot.revision() - 1L)
+                        + " while the model holds "
+                        + live.revision());
+            }
             OperationResult stored = provider().apply(pruned.batch);
             if (!stored.successful()) {
-                log.warn("Expiry was not stored: {}", stored);
+                log.warn(
+                    "Expiry was not stored: {} {}",
+                    stored.failure()
+                        .orElse(null),
+                    stored.message()
+                        .orElse(""));
                 return stored;
             }
             current = pruned.snapshot;
@@ -509,14 +552,20 @@ public final class SingleWriterImpl implements SingleWriter {
                 }
                 return OperationResult.success();
             }
-            log.error("Snapshot {} was not saved: {}", Long.valueOf(snapshot.revision()), written);
+            log.error(
+                "Snapshot {} was not saved: {} {}",
+                Long.valueOf(snapshot.revision()),
+                written.failure()
+                    .orElse(null),
+                written.message()
+                    .orElse(""));
             return written;
         } finally {
             writeLock.unlock();
         }
     }
 
-    interface Lookup {
+    public interface Lookup {
 
         Optional<PermissionStore> store(String id);
     }

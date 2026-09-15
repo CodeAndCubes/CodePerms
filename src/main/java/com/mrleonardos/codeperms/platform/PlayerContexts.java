@@ -40,6 +40,9 @@ final class PlayerContexts {
             }
             return ContextSet.empty();
         }
+        if (operators.syncIfOutdated(player)) {
+            active.remove(player);
+        }
         ContextSet cached = active.get(player);
         if (cached != null) {
             return cached;

@@ -29,9 +29,12 @@ import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
+import com.mrleonardos.codeperms.internal.Ceilings;
 import com.mrleonardos.codeperms.internal.MainSettings;
 import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.admin.ChangeCoalescer;
+import com.mrleonardos.codeperms.internal.admin.PermsAdminImpl;
+import com.mrleonardos.codeperms.internal.engine.ResolverImpl;
 import com.mrleonardos.codeperms.internal.store.CoreGroupsImporter;
 import com.mrleonardos.codeperms.internal.store.GroupsStore;
 import com.mrleonardos.codeperms.internal.store.JsonPermissionStore;
@@ -70,9 +73,9 @@ class PlatformMaintenanceTest {
         Path coreFile = writeCoreFile();
         RefusingStore store = new RefusingStore();
         store.refuse = true;
-        PlatformMaintenance maintenance = maintenance(writer(store), coreFile);
+        PlatformMaintenance maintenance = maintenance(writer(store), coreFile, new Ceilings(settings, LOG));
 
-        OperationResult result = maintenance.importFromCore(false, false);
+        OperationResult result = maintenance.importFromCore(false, false).result;
 
         assertFalse(result.successful());
         assertFalse(marked(coreFile), "маркер обязан появиться только после удачного коммита");
@@ -83,9 +86,12 @@ class PlatformMaintenanceTest {
     @Test
     void landedImportMarksTheCoreFileAndTellsTheListeners() throws Exception {
         Path coreFile = writeCoreFile();
-        PlatformMaintenance maintenance = maintenance(writer(new RefusingStore()), coreFile);
+        PlatformMaintenance maintenance = maintenance(
+            writer(new RefusingStore()),
+            coreFile,
+            new Ceilings(settings, LOG));
 
-        OperationResult result = maintenance.importFromCore(false, false);
+        OperationResult result = maintenance.importFromCore(false, false).result;
 
         assertTrue(result.successful());
         assertTrue(marked(coreFile));
@@ -96,9 +102,12 @@ class PlatformMaintenanceTest {
     @Test
     void dryRunTouchesNothing() throws Exception {
         Path coreFile = writeCoreFile();
-        PlatformMaintenance maintenance = maintenance(writer(new RefusingStore()), coreFile);
+        PlatformMaintenance maintenance = maintenance(
+            writer(new RefusingStore()),
+            coreFile,
+            new Ceilings(settings, LOG));
 
-        OperationResult result = maintenance.importFromCore(true, false);
+        OperationResult result = maintenance.importFromCore(true, false).result;
 
         assertTrue(result.successful());
         assertFalse(marked(coreFile));
@@ -109,16 +118,15 @@ class PlatformMaintenanceTest {
     @Test
     void reloadKeepsWorkThatWasNotFlushedYet() throws Exception {
         PermissionStore builtin = new JsonPermissionStore(
-            settings,
             new MainSettings(configs),
             groups,
             players,
-            PermsLimits.defaults(),
+            () -> PermsLimits.defaults(),
             LOG);
         SingleWriterImpl writer = writer(builtin);
         writer.commit(withGroup(writer.snapshot(), "vip"), batch("vip"));
         assertTrue(writer.unsaved());
-        PlatformMaintenance maintenance = maintenance(writer, writeCoreFile());
+        PlatformMaintenance maintenance = maintenance(writer, writeCoreFile(), new Ceilings(settings, LOG));
 
         OperationResult result = maintenance.reload();
 
@@ -131,21 +139,78 @@ class PlatformMaintenanceTest {
             "перечитывание не имеет права терять несохранённое");
         assertEquals(
             "vip",
-            new GroupsStore(groups, PermsLimits.defaults(), LOG).load()
+            new GroupsStore(groups, () -> PermsLimits.defaults(), LOG).load()
                 .groups()
                 .get(2)
                 .id());
     }
 
-    private PlatformMaintenance maintenance(SingleWriterImpl writer, Path coreFile) {
+    @Test
+    void reloadPicksUpNewCeilingsForTheStoresAndTheAdmin() throws Exception {
+        Ceilings ceilings = new Ceilings(settings, LOG);
+        PermissionStore builtin = new JsonPermissionStore(new MainSettings(configs), groups, players, ceilings, LOG);
+        SingleWriterImpl writer = writer(builtin);
+        assertEquals(
+            2,
+            writer.snapshot()
+                .groups()
+                .size());
+        Path file = TestConfigs.permissions(root)
+            .resolve("perms.toml");
+        String text = TestConfigs.read(file);
+        assertTrue(text.contains("groups = 512"), "ожидалось заводское значение потолка:\n" + text);
+        TestConfigs.write(file, text.replace("groups = 512", "groups = 1"));
+        PlatformMaintenance maintenance = maintenance(writer, writeCoreFile(), ceilings);
+        PermsAdminImpl admin = new PermsAdminImpl(writer, coalescer, ceilings, new ResolverImpl());
+
+        OperationResult result = maintenance.reload();
+
+        assertTrue(result.successful());
+        assertEquals(
+            1,
+            writer.snapshot()
+                .groups()
+                .size(),
+            "потолок групп обязан ужаться после reload, а не ждать перезапуска");
+        assertEquals(
+            OperationResult.Failure.LIMIT_REACHED,
+            admin.createGroup("mod", "", 0, ChangeCause.COMMAND, "console")
+                .failure()
+                .get(),
+            "админ спрашивает потолки у того же источника, что и сторы");
+    }
+
+    @Test
+    void unreadableSourceAnswersItsOwnFailure() throws Exception {
+        Path coreFile = writeCoreFile();
+        TestConfigs.write(coreFile, "[groups.player", "nodes = []");
+        PlatformMaintenance maintenance = maintenance(
+            writer(new RefusingStore()),
+            coreFile,
+            new Ceilings(settings, LOG));
+
+        OperationResult result = maintenance.importFromCore(false, false).result;
+
+        assertEquals(
+            OperationResult.Failure.UNREADABLE_SOURCE,
+            result.failure()
+                .get());
+        assertEquals(
+            coreFile.toString(),
+            result.message()
+                .get());
+    }
+
+    private PlatformMaintenance maintenance(SingleWriterImpl writer, Path coreFile, Ceilings ceilings) {
         return new PlatformMaintenance(
             settings,
             groups,
             players,
             writer,
-            new CoreGroupsImporter(configs, PermsLimits.defaults(), LOG),
-            new DefaultNodes(settings, PermsLimits.defaults(), LOG),
-            coalescer);
+            new CoreGroupsImporter(configs, ceilings, LOG),
+            new DefaultNodes(settings, ceilings, LOG),
+            coalescer,
+            ceilings);
     }
 
     private SingleWriterImpl writer(PermissionStore store) {

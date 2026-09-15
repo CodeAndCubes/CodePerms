@@ -3,6 +3,7 @@ package com.mrleonardos.codeperms.platform;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import com.mrleonardos.codecore.api.adapter.PermissionCapabilities;
@@ -17,9 +18,11 @@ import com.mrleonardos.codeperms.internal.PermsSettings;
 final class PermsRoleAdapter implements RoleAdapter {
 
     private final Supplier<PermissionService> assembly;
+    private final BooleanSupplier storageSeam;
 
-    PermsRoleAdapter(Supplier<PermissionService> assembly) {
+    PermsRoleAdapter(Supplier<PermissionService> assembly, BooleanSupplier storageSeam) {
         this.assembly = assembly;
+        this.storageSeam = storageSeam;
     }
 
     @Override
@@ -39,7 +42,7 @@ final class PermsRoleAdapter implements RoleAdapter {
 
     @Override
     public boolean available() {
-        return true;
+        return storageSeam.getAsBoolean();
     }
 
     @Override

@@ -227,6 +227,38 @@ class PermsAdminImplTest {
     }
 
     @Test
+    void renameDropsTheAutoDisplayNameOfTheOldId() {
+        admin.createGroup("mod", "", 0, ChangeCause.COMMAND, "console");
+
+        assertTrue(
+            admin.renameGroup("mod", "moderator", ChangeCause.COMMAND, "console")
+                .successful());
+
+        assertEquals(
+            "moderator",
+            writer.snapshot()
+                .group("moderator")
+                .get()
+                .displayName());
+    }
+
+    @Test
+    void renameKeepsTheDisplayNameGivenByHand() {
+        admin.createGroup("mod", "Модераторы", 0, ChangeCause.COMMAND, "console");
+
+        assertTrue(
+            admin.renameGroup("mod", "moderator", ChangeCause.COMMAND, "console")
+                .successful());
+
+        assertEquals(
+            "Модераторы",
+            writer.snapshot()
+                .group("moderator")
+                .get()
+                .displayName());
+    }
+
+    @Test
     void renameCarriesTracksAlong() {
         admin.createGroup("junior", "", 10, ChangeCause.COMMAND, "console");
         admin.createGroup("senior", "", 20, ChangeCause.COMMAND, "console");
@@ -446,6 +478,101 @@ class PermsAdminImplTest {
             admin.movePlayerGroup(PLAYER, "player", "ghost", ChangeCause.COMMAND, "console")
                 .failure()
                 .get());
+    }
+
+    @Test
+    void moveOfAPlayerWhoHoldsBothGroupsKeepsTheLaterExpiry() {
+        writer.seed(
+            Snapshot.builder()
+                .group(group("player", 0))
+                .group(group("vip", 10))
+                .user(
+                    UserRecord.of(
+                        PLAYER,
+                        "Steve",
+                        null,
+                        Arrays.asList(
+                            UserRecord.Grant.of("player", NOW + 1000L),
+                            UserRecord.Grant.of("vip", NOW + 5000L)),
+                        nodes(),
+                        meta()))
+                .build());
+
+        assertTrue(
+            admin.movePlayerGroup(PLAYER, "player", "vip", ChangeCause.COMMAND, "console")
+                .successful());
+
+        UserRecord user = writer.snapshot()
+            .user(PLAYER)
+            .get();
+        assertEquals(
+            1,
+            user.groups()
+                .size());
+        assertEquals(
+            "vip",
+            user.groups()
+                .get(0)
+                .groupId());
+        assertEquals(
+            NOW + 5000L,
+            user.groups()
+                .get(0)
+                .expiresAt(),
+            "из двух сроков остаётся более поздний");
+    }
+
+    @Test
+    void moveMergesTheTimedGrantWithThePermanentOneIntoPermanent() {
+        writer.seed(
+            Snapshot.builder()
+                .group(group("player", 0))
+                .group(group("vip", 10))
+                .user(
+                    UserRecord.of(
+                        PLAYER,
+                        "Steve",
+                        null,
+                        Arrays.asList(UserRecord.Grant.of("player", NOW + 5000L), UserRecord.Grant.permanent("vip")),
+                        nodes(),
+                        meta()))
+                .build());
+
+        assertTrue(
+            admin.movePlayerGroup(PLAYER, "player", "vip", ChangeCause.COMMAND, "console")
+                .successful());
+
+        UserRecord user = writer.snapshot()
+            .user(PLAYER)
+            .get();
+        assertEquals(
+            1,
+            user.groups()
+                .size());
+        assertTrue(
+            user.groups()
+                .get(0)
+                .permanent(),
+            "бессрочная выдача позднее любой срочной");
+    }
+
+    @Test
+    void removingThePrimaryGroupClearsThePrimary() {
+        admin.createGroup("vip", "", 0, ChangeCause.COMMAND, "console");
+        admin.addPlayerGroup(PLAYER, "vip", 0L, ChangeCause.COMMAND, "console");
+        admin.setPrimaryGroup(PLAYER, "vip", ChangeCause.COMMAND, "console");
+
+        assertTrue(
+            admin.removePlayerGroup(PLAYER, "vip", ChangeCause.COMMAND, "console")
+                .successful());
+
+        UserRecord user = writer.snapshot()
+            .user(PLAYER)
+            .get();
+        assertNull(user.primary(), "снятая группа не остаётся основной");
+        assertTrue(
+            user.groups()
+                .isEmpty());
     }
 
     @Test

@@ -71,6 +71,6 @@ public final class NodePatterns {
     }
 
     private static String[] split(String value) {
-        return value.split("\\" + NodeEntry.SEPARATOR);
+        return value.split("\\" + NodeEntry.SEPARATOR, -1);
     }
 }

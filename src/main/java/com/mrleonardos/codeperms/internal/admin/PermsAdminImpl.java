@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.manage.ChangeEvent;
@@ -34,29 +35,38 @@ public final class PermsAdminImpl implements PermsAdmin {
 
     private final SingleWriter writer;
     private final ChangeCoalescer coalescer;
-    private final PermsLimits limits;
+    private final Supplier<PermsLimits> limits;
     private final ResolverImpl resolver;
     private final LongSupplier clock;
 
     public PermsAdminImpl(SingleWriter writer, ChangeCoalescer coalescer, PermsLimits limits) {
-        this(writer, coalescer, limits, new ResolverImpl(System::currentTimeMillis));
+        this(writer, coalescer, () -> limits, new ResolverImpl(System::currentTimeMillis));
     }
 
     public PermsAdminImpl(SingleWriter writer, ChangeCoalescer coalescer, PermsLimits limits, LongSupplier clock) {
-        this(writer, coalescer, limits, new ResolverImpl(clock), clock);
+        this(writer, coalescer, () -> limits, new ResolverImpl(clock), clock);
     }
 
-    public PermsAdminImpl(SingleWriter writer, ChangeCoalescer coalescer, PermsLimits limits, ResolverImpl resolver) {
+    public PermsAdminImpl(SingleWriter writer, ChangeCoalescer coalescer, Supplier<PermsLimits> limits,
+        ResolverImpl resolver) {
         this(writer, coalescer, limits, resolver, System::currentTimeMillis);
     }
 
-    public PermsAdminImpl(SingleWriter writer, ChangeCoalescer coalescer, PermsLimits limits, ResolverImpl resolver,
-        LongSupplier clock) {
+    public PermsAdminImpl(SingleWriter writer, ChangeCoalescer coalescer, PermsLimits limits, ResolverImpl resolver) {
+        this(writer, coalescer, () -> limits, resolver, System::currentTimeMillis);
+    }
+
+    public PermsAdminImpl(SingleWriter writer, ChangeCoalescer coalescer, Supplier<PermsLimits> limits,
+        ResolverImpl resolver, LongSupplier clock) {
         this.writer = Objects.requireNonNull(writer, "writer");
         this.coalescer = Objects.requireNonNull(coalescer, "coalescer");
         this.limits = Objects.requireNonNull(limits, "limits");
         this.resolver = Objects.requireNonNull(resolver, "resolver");
         this.clock = Objects.requireNonNull(clock, "clock");
+    }
+
+    private PermsLimits limits() {
+        return limits.get();
     }
 
     @Override
@@ -65,8 +75,8 @@ public final class PermsAdminImpl implements PermsAdmin {
         if (groupId == null) {
             return invalid("Group id must not be empty");
         }
-        if (!limits.acceptsGroupId(groupId)) {
-            return tooLong("Group id is longer than " + limits.groupIdLength());
+        if (!limits().acceptsGroupId(groupId)) {
+            return tooLong("Group id is longer than " + limits().groupIdLength());
         }
         PendingChange pending = new PendingChange(writer.snapshot(), cause, author);
         if (pending.current()
@@ -76,9 +86,10 @@ public final class PermsAdminImpl implements PermsAdmin {
         }
         if (pending.current()
             .groups()
-            .size() >= limits.groups()) {
-            return pending
-                .reject(OperationResult.Failure.LIMIT_REACHED, "No room for more than " + limits.groups() + " groups");
+            .size() >= limits().groups()) {
+            return pending.reject(
+                OperationResult.Failure.LIMIT_REACHED,
+                "No room for more than " + limits().groups() + " groups");
         }
         pending.putGroup(
             GroupRecord.of(
@@ -114,8 +125,8 @@ public final class PermsAdminImpl implements PermsAdmin {
         if (renamed == null) {
             return invalid("Group id must not be empty");
         }
-        if (!limits.acceptsGroupId(renamed)) {
-            return tooLong("Group id is longer than " + limits.groupIdLength());
+        if (!limits().acceptsGroupId(renamed)) {
+            return tooLong("Group id is longer than " + limits().groupIdLength());
         }
         PendingChange pending = new PendingChange(writer.snapshot(), cause, author);
         GroupRecord source = groupOf(pending.current(), groupId);
@@ -131,9 +142,10 @@ public final class PermsAdminImpl implements PermsAdmin {
         if (field != null) {
             return inUse(pending, source.id(), field);
         }
+        String displayName = source.displayName()
+            .equals(source.id()) ? renamed : source.displayName();
         pending.putGroup(
-            GroupRecord
-                .of(renamed, source.displayName(), source.weight(), source.inherits(), source.nodes(), source.meta()));
+            GroupRecord.of(renamed, displayName, source.weight(), source.inherits(), source.nodes(), source.meta()));
         pending.removeGroup(source.id());
         return commit(pending, relink(pending, source.id(), renamed, cause));
     }
@@ -145,8 +157,8 @@ public final class PermsAdminImpl implements PermsAdmin {
         if (targetId == null) {
             return invalid("Group id must not be empty");
         }
-        if (!limits.acceptsGroupId(targetId)) {
-            return tooLong("Group id is longer than " + limits.groupIdLength());
+        if (!limits().acceptsGroupId(targetId)) {
+            return tooLong("Group id is longer than " + limits().groupIdLength());
         }
         PendingChange pending = new PendingChange(writer.snapshot(), cause, author);
         GroupRecord origin = groupOf(pending.current(), sourceId);
@@ -160,9 +172,10 @@ public final class PermsAdminImpl implements PermsAdmin {
         }
         if (pending.current()
             .groups()
-            .size() >= limits.groups()) {
-            return pending
-                .reject(OperationResult.Failure.LIMIT_REACHED, "No room for more than " + limits.groups() + " groups");
+            .size() >= limits().groups()) {
+            return pending.reject(
+                OperationResult.Failure.LIMIT_REACHED,
+                "No room for more than " + limits().groups() + " groups");
         }
         pending.putGroup(
             GroupRecord
@@ -236,14 +249,14 @@ public final class PermsAdminImpl implements PermsAdmin {
         if (group == null) {
             return pending.reject(OperationResult.Failure.NOT_FOUND, "Group " + groupId + " is missing");
         }
-        if (!limits.acceptsNode(entry.node())) {
+        if (!limits().acceptsNode(entry.node())) {
             return tooLong("Node " + entry.node() + " does not fit the ceilings");
         }
-        List<NodeEntry> updated = withNode(group.nodes(), entry, limits.nodesPerSubject());
+        List<NodeEntry> updated = withNode(group.nodes(), entry, limits().nodesPerSubject());
         if (updated == null) {
             return pending.reject(
                 OperationResult.Failure.LIMIT_REACHED,
-                "Group " + group.id() + " holds already " + limits.nodesPerSubject() + " nodes");
+                "Group " + group.id() + " holds already " + limits().nodesPerSubject() + " nodes");
         }
         pending.putGroup(withNodes(group, updated));
         return commit(pending, event(ChangeEvent.Kind.NODES, cause, subject(group.id())));
@@ -300,14 +313,14 @@ public final class PermsAdminImpl implements PermsAdmin {
         Objects.requireNonNull(entry, "entry");
         PendingChange pending = new PendingChange(writer.snapshot(), cause, author);
         UserRecord user = userOf(pending.current(), player);
-        if (!limits.acceptsNode(entry.node())) {
+        if (!limits().acceptsNode(entry.node())) {
             return tooLong("Node " + entry.node() + " does not fit the ceilings");
         }
-        List<NodeEntry> updated = withNode(user.nodes(), entry, limits.nodesPerSubject());
+        List<NodeEntry> updated = withNode(user.nodes(), entry, limits().nodesPerSubject());
         if (updated == null) {
             return pending.reject(
                 OperationResult.Failure.LIMIT_REACHED,
-                "Player " + player + " holds already " + limits.nodesPerSubject() + " nodes");
+                "Player " + player + " holds already " + limits().nodesPerSubject() + " nodes");
         }
         pending.putPlayer(withNodes(user, updated));
         return commit(pending, event(ChangeEvent.Kind.NODES, cause, playerSubject(player)));
@@ -407,20 +420,39 @@ public final class PermsAdminImpl implements PermsAdmin {
             return pending.reject(OperationResult.Failure.NOT_FOUND, "Group " + to + " is missing");
         }
         UserRecord user = userOf(pending.current(), player);
-        List<UserRecord.Grant> grants = new ArrayList<>();
-        Set<String> kept = new HashSet<>();
+        long carried = 0L;
+        long held = 0L;
+        boolean hasTarget = false;
         boolean moved = false;
         for (UserRecord.Grant grant : user.groups()) {
-            String target = grant.groupId()
-                .equals(from) ? to : grant.groupId();
-            moved |= grant.groupId()
-                .equals(from);
-            if (kept.add(target)) {
-                grants.add(UserRecord.Grant.of(target, grant.expiresAt()));
-            }
+            if (grant.groupId()
+                .equals(from)) {
+                moved = true;
+                carried = grant.expiresAt();
+            } else if (grant.groupId()
+                .equals(to)) {
+                    hasTarget = true;
+                    held = grant.expiresAt();
+                }
         }
         if (!moved) {
             return pending.reject(OperationResult.Failure.NOT_FOUND, "Player holds no group " + from);
+        }
+        long expiresAt = hasTarget ? laterExpiry(carried, held) : carried;
+        List<UserRecord.Grant> grants = new ArrayList<>();
+        boolean placed = false;
+        for (UserRecord.Grant grant : user.groups()) {
+            if (grant.groupId()
+                .equals(from)
+                || grant.groupId()
+                    .equals(to)) {
+                if (!placed) {
+                    grants.add(UserRecord.Grant.of(to, expiresAt));
+                    placed = true;
+                }
+                continue;
+            }
+            grants.add(grant);
         }
         String primary = from.equals(user.primary()) ? to : user.primary();
         pending.putPlayer(UserRecord.of(user.uuid(), user.name(), primary, grants, user.nodes(), user.meta()));
@@ -443,7 +475,8 @@ public final class PermsAdminImpl implements PermsAdmin {
             .size()) {
             return pending.reject(OperationResult.Failure.NOT_FOUND, "Player holds no group " + normalized);
         }
-        pending.putPlayer(withGroups(user, grants));
+        String primary = normalized.equals(user.primary()) ? null : user.primary();
+        pending.putPlayer(UserRecord.of(user.uuid(), user.name(), primary, grants, user.nodes(), user.meta()));
         return commit(pending, event(ChangeEvent.Kind.MEMBERSHIP, cause, playerSubject(player)));
     }
 
@@ -601,11 +634,11 @@ public final class PermsAdminImpl implements PermsAdmin {
                 return invalid("Meta key must not hold whitespace: " + key);
             }
         }
-        if (!limits.acceptsMetaValue(value)) {
-            return tooLong("Meta value is longer than " + limits.metaValueLength());
+        if (!limits().acceptsMetaValue(value)) {
+            return tooLong("Meta value is longer than " + limits().metaValueLength());
         }
-        if (!held.containsKey(key) && held.size() >= limits.metaKeysPerSubject()) {
-            return tooLong("No room for more than " + limits.metaKeysPerSubject() + " meta keys");
+        if (!held.containsKey(key) && held.size() >= limits().metaKeysPerSubject()) {
+            return tooLong("No room for more than " + limits().metaKeysPerSubject() + " meta keys");
         }
         return OperationResult.success();
     }
@@ -768,6 +801,13 @@ public final class PermsAdminImpl implements PermsAdmin {
         String normalized = id.trim()
             .toLowerCase(Locale.ROOT);
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static long laterExpiry(long left, long right) {
+        if (left == 0L || right == 0L) {
+            return 0L;
+        }
+        return Math.max(left, right);
     }
 
     private static ChangeEvent event(ChangeEvent.Kind kind, ChangeCause cause, ChangeEvent.Subject subject) {

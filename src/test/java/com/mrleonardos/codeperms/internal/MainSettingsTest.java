@@ -78,6 +78,16 @@ class MainSettingsTest {
         assertEquals("admin", main.opGroup());
     }
 
+    @Test
+    void groupNamesFoldToLowerCaseLikeGroupIdsDo() {
+        TestConfigs.writeMain(root, "[permissions]", "defaultGroup = \" Player \"", "opGroup = \"Admin\"");
+
+        MainSettings main = settings();
+
+        assertEquals("player", main.defaultGroup(), "defaultGroup обязан сверяться с id группы в нижнем регистре");
+        assertEquals("admin", main.opGroup());
+    }
+
     private MainSettings settings() {
         return new MainSettings(TestConfigs.of(root));
     }

@@ -15,6 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.apache.logging.log4j.Logger;
 
@@ -46,21 +47,21 @@ public final class CoreGroupsImporter {
     public static final String CORE_NAME = "groups";
     public static final String CORE_FILE = "core-groups.toml";
 
-    private static final String GROUPS_FIELD = "groups";
-    private static final String INHERITS_FIELD = "inherits";
-    private static final String NODES_FIELD = "nodes";
-    private static final String META_FIELD = "meta";
-    private static final String GROUP_FIELD = "group";
+    private static final String GROUPS_FIELD = SnapshotCodec.GROUPS;
+    private static final String INHERITS_FIELD = SnapshotCodec.INHERITS;
+    private static final String NODES_FIELD = SnapshotCodec.NODES;
+    private static final String META_FIELD = SnapshotCodec.META;
+    private static final String GROUP_FIELD = SnapshotCodec.GRANT_GROUP;
 
     private final ConfigService configs;
     private final Path coreFile;
     private final Path exportDirectory;
-    private final PermsLimits limits;
+    private final Supplier<PermsLimits> limits;
     private final Logger log;
 
     private ConfigFile<CoreGroupsView> file;
 
-    public CoreGroupsImporter(ConfigService configs, PermsLimits limits, Logger log) {
+    public CoreGroupsImporter(ConfigService configs, Supplier<PermsLimits> limits, Logger log) {
         this.configs = configs;
         this.coreFile = configs.directory(ConfigRoles.PERMISSIONS)
             .resolve(CORE_FILE);
@@ -178,12 +179,12 @@ public final class CoreGroupsImporter {
     private List<GroupRecord> readGroups(CoreGroupsView view, Counts counts) {
         List<GroupRecord> groups = new ArrayList<>();
         for (Map.Entry<String, JsonElement> entry : object(view.groups).entrySet()) {
-            if (groups.size() >= limits.groups()) {
+            if (groups.size() >= limits().groups()) {
                 counts.groupsSkipped++;
                 continue;
             }
             String id = entry.getKey();
-            if (!limits.acceptsGroupId(id)) {
+            if (!limits().acceptsGroupId(id)) {
                 counts.groupsSkipped++;
                 continue;
             }
@@ -233,12 +234,12 @@ public final class CoreGroupsImporter {
     private List<NodeEntry> nodes(JsonObject body, Counts counts) {
         List<NodeEntry> nodes = new ArrayList<>();
         for (JsonElement element : array(body.get(NODES_FIELD))) {
-            if (nodes.size() >= limits.nodesPerSubject() || !element.isJsonPrimitive()) {
+            if (nodes.size() >= limits().nodesPerSubject() || !element.isJsonPrimitive()) {
                 counts.nodesSkipped++;
                 continue;
             }
             try {
-                nodes.add(NodeEntry.parse(element.getAsString(), limits));
+                nodes.add(NodeEntry.parse(element.getAsString(), limits()));
                 counts.nodes++;
             } catch (RuntimeException failure) {
                 counts.nodesSkipped++;
@@ -256,7 +257,7 @@ public final class CoreGroupsImporter {
                 continue;
             }
             String text = value.getAsString();
-            if (text.length() > limits.metaValueLength() || meta.size() >= limits.metaKeysPerSubject()) {
+            if (text.length() > limits().metaValueLength() || meta.size() >= limits().metaKeysPerSubject()) {
                 counts.metaSkipped++;
                 continue;
             }
@@ -264,6 +265,10 @@ public final class CoreGroupsImporter {
             counts.meta++;
         }
         return meta;
+    }
+
+    private PermsLimits limits() {
+        return limits.get();
     }
 
     private JsonObject groupsOf(Snapshot snapshot, Counts counts) {
@@ -500,14 +505,14 @@ public final class CoreGroupsImporter {
 
     public static final class Counts {
 
-        int groups;
-        int players;
-        int nodes;
-        int meta;
-        int groupsSkipped;
-        int playersSkipped;
-        int nodesSkipped;
-        int metaSkipped;
+        public int groups;
+        public int players;
+        public int nodes;
+        public int meta;
+        public int groupsSkipped;
+        public int playersSkipped;
+        public int nodesSkipped;
+        public int metaSkipped;
 
         public int groups() {
             return groups;

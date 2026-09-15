@@ -3,6 +3,7 @@ package com.mrleonardos.codeperms.internal.store;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -28,12 +29,14 @@ import org.junit.jupiter.api.io.TempDir;
 import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.util.Scheduler;
 import com.mrleonardos.codeperms.TestConfigs;
+import com.mrleonardos.codeperms.api.PermsApi;
 import com.mrleonardos.codeperms.api.PermsLimits;
 import com.mrleonardos.codeperms.api.model.ChangeCause;
 import com.mrleonardos.codeperms.api.model.Snapshot;
 import com.mrleonardos.codeperms.api.store.ChangeBatch;
 import com.mrleonardos.codeperms.api.store.OperationResult;
 import com.mrleonardos.codeperms.api.store.PermissionStore;
+import com.mrleonardos.codeperms.internal.Ceilings;
 import com.mrleonardos.codeperms.internal.MainSettings;
 
 class SingleWriterImplTest {
@@ -179,8 +182,7 @@ class SingleWriterImplTest {
                 try {
                     for (int step = 0; step < perThread; step++) {
                         String groupId = "g" + base + "_" + step;
-                        answers.add(
-                            writer.commit(with(writer.snapshot(), PermsFixtures.group(groupId, 1)), batch(groupId)));
+                        answers.add(commitFresh(writer, groupId));
                     }
                 } finally {
                     done.countDown();
@@ -417,7 +419,47 @@ class SingleWriterImplTest {
 
         assertSame(foreign, SingleWriterImpl.resolveProvider(FOREIGN_ID, lookup, builtin, LOG));
         assertSame(builtin, SingleWriterImpl.resolveProvider("json", lookup, builtin, LOG));
-        assertSame(builtin, SingleWriterImpl.resolveProvider("unknown", lookup, builtin, LOG));
+        assertThrows(
+            IllegalStateException.class,
+            () -> SingleWriterImpl.resolveProvider("unknown", lookup, builtin, LOG));
+        assertTrue(SingleWriterImpl.storageRegistered(FOREIGN_ID, lookup));
+        assertTrue(SingleWriterImpl.storageRegistered("json", lookup));
+        assertFalse(SingleWriterImpl.storageRegistered("unknown", lookup));
+    }
+
+    @Test
+    void commitBuiltOnAStaleSnapshotIsRefusedWithoutTouchingTheStore() {
+        MemoryStore store = new MemoryStore();
+        SingleWriterImpl writer = writer(store);
+        Snapshot stale = writer.snapshot();
+        writer.commit(with(stale, PermsFixtures.group("vip", 10)), batch("vip"));
+
+        OperationResult result = writer.commit(with(stale, PermsFixtures.group("mod", 5)), batch("mod"));
+
+        assertEquals(
+            OperationResult.Failure.STALE_SNAPSHOT,
+            result.failure()
+                .get());
+        assertEquals(1, store.applied.get());
+        assertTrue(
+            writer.snapshot()
+                .group("vip")
+                .isPresent());
+        assertFalse(
+            writer.snapshot()
+                .group("mod")
+                .isPresent());
+    }
+
+    private OperationResult commitFresh(SingleWriterImpl writer, String groupId) {
+        while (true) {
+            OperationResult answer = writer
+                .commit(with(writer.snapshot(), PermsFixtures.group(groupId, 1)), batch(groupId));
+            if (answer.successful() || answer.failure()
+                .orElse(null) != OperationResult.Failure.STALE_SNAPSHOT) {
+                return answer;
+            }
+        }
     }
 
     private void awaitSaved(SingleWriterImpl writer) throws InterruptedException {
@@ -439,26 +481,29 @@ class SingleWriterImplTest {
 
     private PermissionStore builtin() {
         return new JsonPermissionStore(
-            configs.open(com.mrleonardos.codeperms.internal.PermsSettings.spec()),
             new MainSettings(configs),
             configs.open(GroupsStore.spec()),
             configs.open(PlayersStore.spec()),
-            PermsLimits.defaults(),
+            () -> PermsLimits.defaults(),
             LOG);
     }
 
     @Test
-    void providerNameComesFromTheMainFile() {
+    void unknownProviderNameMakesTheRoleClaimStandAside() {
         TestConfigs.writeMain(root, "[storage]", "provider = \"nowhere\"");
         ConfigService named = TestConfigs.of(root);
+        MainSettings main = new MainSettings(named);
 
-        SingleWriterImpl writer = SingleWriterImpl.create(named, new MainSettings(named), new TestScheduler(), LOG);
-
-        assertEquals(
-            JsonPermissionStore.ID,
-            writer.store()
-                .id(),
-            "имя из главного файла никто не занял, поднимаемся на встроенном json");
+        assertFalse(
+            SingleWriterImpl.storageRegistered(main.provider(), PermsApi::store),
+            "имя из главного файла никто не занял, заявка на роль обязана отступить");
+        SingleWriterImpl writer = SingleWriterImpl.create(
+            named,
+            main,
+            new Ceilings(named.open(com.mrleonardos.codeperms.internal.PermsSettings.spec()), LOG),
+            new TestScheduler(),
+            LOG);
+        assertThrows(IllegalStateException.class, () -> writer.store());
     }
 
     private Snapshot with(Snapshot current, com.mrleonardos.codeperms.api.model.GroupRecord group) {

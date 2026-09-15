@@ -27,7 +27,9 @@ import com.mrleonardos.codecore.api.config.ConfigService;
 import com.mrleonardos.codecore.api.service.PermissionService;
 import com.mrleonardos.codecore.api.util.Scheduler;
 import com.mrleonardos.codeperms.TestConfigs;
+import com.mrleonardos.codeperms.internal.Ceilings;
 import com.mrleonardos.codeperms.internal.MainSettings;
+import com.mrleonardos.codeperms.internal.PermsSettings;
 import com.mrleonardos.codeperms.internal.store.SingleWriterImpl;
 
 class PermsRoleAdapterTest {
@@ -39,7 +41,7 @@ class PermsRoleAdapterTest {
 
     @Test
     void adapterCallsItselfCodepermsAndNamesEverythingItCanDo() {
-        PermsRoleAdapter adapter = new PermsRoleAdapter(StubService::new);
+        PermsRoleAdapter adapter = new PermsRoleAdapter(StubService::new, () -> true);
 
         assertEquals("permissions", adapter.role());
         assertEquals("codeperms", adapter.name());
@@ -59,12 +61,18 @@ class PermsRoleAdapterTest {
     }
 
     @Test
+    void availabilityFollowsTheStorageSeam() {
+        assertFalse(new PermsRoleAdapter(StubService::new, () -> false).available());
+        assertTrue(new PermsRoleAdapter(StubService::new, () -> true).available());
+    }
+
+    @Test
     void filesAreOpenedOnlyWhenTheRoleIsOurs() {
         AtomicInteger assembled = new AtomicInteger();
         PermsRoleAdapter adapter = new PermsRoleAdapter(() -> {
             assembled.incrementAndGet();
             return assemble();
-        });
+        }, () -> true);
 
         assertEquals(0, assembled.get(), "заявка ничего не собирает");
         assertFalse(Files.exists(TestConfigs.permissions(root)), "до решения роли мод не открывает файлов");
@@ -91,14 +99,21 @@ class PermsRoleAdapterTest {
         assertFalse(before.isEmpty(), "файлы прошлого запуска должны быть на месте");
         Thread.sleep(20L);
 
-        new PermsRoleAdapter(() -> { throw new AssertionError("create() зовут только у победителя роли"); });
+        new PermsRoleAdapter(
+            () -> { throw new AssertionError("create() зовут только у победителя роли"); },
+            () -> true);
 
         assertEquals(before, stamps(), "время изменения файлов не поменялось");
     }
 
     private PermissionService assemble() {
         ConfigService configs = TestConfigs.of(root);
-        SingleWriterImpl writer = SingleWriterImpl.create(configs, new MainSettings(configs), new IdleScheduler(), LOG);
+        SingleWriterImpl writer = SingleWriterImpl.create(
+            configs,
+            new MainSettings(configs),
+            new Ceilings(configs.open(PermsSettings.spec()), LOG),
+            new IdleScheduler(),
+            LOG);
         writer.snapshot();
         return new StubService();
     }

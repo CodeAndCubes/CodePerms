@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Supplier;
 
-import com.mrleonardos.codecore.api.command.ArgumentType;
 import com.mrleonardos.codecore.api.command.ArgumentTypes;
 import com.mrleonardos.codecore.api.command.CommandContext;
 import com.mrleonardos.codecore.api.command.CommandMessages;
@@ -41,20 +41,19 @@ public final class PermsCommands {
     private static final String TRACK_ARGUMENT = "track";
     private static final String FLAGS_ARGUMENT = "flags";
 
-    private static final String PERMANENT = "permanent";
     private static final String DRY_RUN_FLAG = "--dry-run";
     private static final String FORCE_FLAG = "--force";
     private static final String EMPTY_MARKER = "-";
 
     private final SingleWriter writer;
     private final PermsAdmin admin;
-    private final PermsLimits limits;
+    private final Supplier<PermsLimits> limits;
     private final PermsArguments arguments;
     private final PermsSubjects subjects;
     private final PermsMaintenance maintenance;
     private final DebugView debug;
 
-    public PermsCommands(SingleWriter writer, PermsAdmin admin, PermsLimits limits, PermsArguments arguments,
+    public PermsCommands(SingleWriter writer, PermsAdmin admin, Supplier<PermsLimits> limits, PermsArguments arguments,
         PermsSubjects subjects, PermsMaintenance maintenance, DebugView debug) {
         this.writer = writer;
         this.admin = admin;
@@ -167,7 +166,7 @@ public final class PermsCommands {
                         CommandNode.literal("set")
                             .arg(GROUP_ARGUMENT, arguments.groupId())
                             .arg(NODE_ARGUMENT, arguments.node())
-                            .optionalArg(EXPIRY_ARGUMENT, expiryArgument())
+                            .optionalArg(EXPIRY_ARGUMENT, arguments.expiry())
                             .executes(this::groupNodeSet))
                     .child(
                         CommandNode.literal("remove")
@@ -209,7 +208,7 @@ public final class PermsCommands {
                     .permission(PermsPermissions.PLAYER_ADD_GROUP)
                     .arg(PLAYER_ARGUMENT, arguments.player())
                     .arg(GROUP_ARGUMENT, arguments.groupId())
-                    .optionalArg(EXPIRY_ARGUMENT, expiryArgument())
+                    .optionalArg(EXPIRY_ARGUMENT, arguments.expiry())
                     .executes(this::playerAddGroup))
             .child(
                 CommandNode.literal("rmgroup")
@@ -224,7 +223,7 @@ public final class PermsCommands {
                         CommandNode.literal("set")
                             .arg(PLAYER_ARGUMENT, arguments.player())
                             .arg(NODE_ARGUMENT, arguments.node())
-                            .optionalArg(EXPIRY_ARGUMENT, expiryArgument())
+                            .optionalArg(EXPIRY_ARGUMENT, arguments.expiry())
                             .executes(this::playerNodeSet))
                     .child(
                         CommandNode.literal("remove")
@@ -622,39 +621,77 @@ public final class PermsCommands {
                 return;
             }
         }
-        OperationResult result = maintenance.importFromCore(dryRun, force);
+        PermsMaintenance.Outcome outcome = maintenance.importFromCore(dryRun, force);
+        OperationResult result = outcome.result;
+        if (!result.successful() && result.failure()
+            .orElse(null) == OperationResult.Failure.UNREADABLE_SOURCE) {
+            context.replyError(
+                PermsMessages.IMPORT_UNREADABLE,
+                result.message()
+                    .orElse(""));
+            return;
+        }
         if (!result.successful() && !force
             && result.failure()
                 .orElse(null) == OperationResult.Failure.INVALID_VALUE) {
             context.replyError(PermsMessages.IMPORT_CHANGED);
             return;
         }
-        reply(
-            context,
-            result,
+        if (!result.successful()) {
+            context.replyError(
+                failureKey(result),
+                result.message()
+                    .orElse(""));
+            return;
+        }
+        if (outcome.counts.groups() == 0 && outcome.counts.players() == 0) {
+            context.reply(PermsMessages.IMPORT_NOTHING);
+            return;
+        }
+        context.reply(
             dryRun ? PermsMessages.IMPORT_DRY : PermsMessages.IMPORT_DONE,
-            result.message()
-                .orElse(""));
+            outcome.counts.groups(),
+            outcome.counts.players(),
+            outcome.counts.nodes(),
+            outcome.counts.meta());
     }
 
     private void export(CommandContext context) {
-        OperationResult result = maintenance.exportToCoreFormat();
-        reply(
-            context,
-            result,
+        PermsMaintenance.Outcome outcome = maintenance.exportToCoreFormat();
+        if (!outcome.result.successful()) {
+            context.replyError(
+                failureKey(outcome.result),
+                outcome.result.message()
+                    .orElse(""));
+            return;
+        }
+        context.reply(
             PermsMessages.EXPORT_DONE,
-            result.message()
-                .orElse(""));
+            outcome.counts.groups(),
+            outcome.counts.players(),
+            outcome.counts.nodes(),
+            outcome.counts.meta());
     }
 
     private void reload(CommandContext context) {
         OperationResult result = maintenance.reload();
-        reply(
-            context,
-            result,
+        if (!result.successful()) {
+            context.replyError(
+                failureKey(result),
+                result.message()
+                    .orElse(""));
+            return;
+        }
+        Snapshot snapshot = writer.snapshot();
+        context.reply(
             PermsMessages.RELOAD_DONE,
-            result.message()
-                .orElse(""));
+            snapshot.revision(),
+            snapshot.groups()
+                .size(),
+            snapshot.tracks()
+                .size(),
+            snapshot.users()
+                .size());
     }
 
     private void debugView(CommandContext context) {
@@ -731,27 +768,11 @@ public final class PermsCommands {
     private NodeEntry parsedNode(CommandContext context, String argument) {
         String raw = context.get(argument);
         try {
-            return NodeEntry.parse(raw, limits);
+            return NodeEntry.parse(raw, limits.get());
         } catch (IllegalArgumentException invalid) {
             context.replyError(PermsMessages.FAILURE_INVALID_VALUE, raw);
             return null;
         }
-    }
-
-    private ArgumentType<Long> expiryArgument() {
-        return new ArgumentType<Long>() {
-
-            @Override
-            public Long parse(String raw) {
-                String text = raw.trim();
-                if (PERMANENT.equalsIgnoreCase(text)) {
-                    return 0L;
-                }
-                long seconds = ArgumentTypes.duration()
-                    .parse(text);
-                return now() + seconds * 1000L;
-            }
-        };
     }
 
     private static void reply(CommandContext context, OperationResult result, String successKey, Object... arguments) {
@@ -792,6 +813,10 @@ public final class PermsCommands {
                 return PermsMessages.FAILURE_IN_USE;
             case TIMEOUT:
                 return PermsMessages.FAILURE_TIMEOUT;
+            case STALE_SNAPSHOT:
+                return PermsMessages.FAILURE_STALE;
+            case UNREADABLE_SOURCE:
+                return PermsMessages.IMPORT_UNREADABLE;
             case PROVIDER_FAILED:
                 return PermsMessages.FAILURE_PROVIDER;
             default:

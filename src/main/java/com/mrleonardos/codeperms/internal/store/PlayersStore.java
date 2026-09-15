@@ -2,6 +2,7 @@ package com.mrleonardos.codeperms.internal.store;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import org.apache.logging.log4j.Logger;
 
@@ -19,7 +20,7 @@ import com.mrleonardos.codeperms.internal.PermsSettings;
 public final class PlayersStore {
 
     private final ConfigFile<JsonObject> file;
-    private final PermsLimits limits;
+    private final Supplier<PermsLimits> limits;
     private final Logger log;
 
     private volatile SnapshotCodec.Quarantine quarantine = SnapshotCodec.Quarantine.empty();
@@ -38,20 +39,20 @@ public final class PlayersStore {
             .build();
     }
 
-    public PlayersStore(ConfigFile<JsonObject> file, PermsLimits limits, Logger log) {
+    public PlayersStore(ConfigFile<JsonObject> file, Supplier<PermsLimits> limits, Logger log) {
         this.file = file;
         this.limits = limits;
         this.log = log;
     }
 
     public SnapshotCodec.DecodedPlayers load() {
-        SnapshotCodec.DecodedPlayers decoded = new SnapshotCodec(limits).readPlayers(file.get(), log);
+        SnapshotCodec.DecodedPlayers decoded = new SnapshotCodec(limits.get()).readPlayers(file.get(), log);
         quarantine = decoded.quarantine();
         return decoded;
     }
 
     public void save(List<UserRecord> players) {
-        new SnapshotCodec(limits).writePlayers(file.get(), players, quarantine);
+        new SnapshotCodec(limits.get()).writePlayers(file.get(), players, quarantine);
         file.save();
     }
 

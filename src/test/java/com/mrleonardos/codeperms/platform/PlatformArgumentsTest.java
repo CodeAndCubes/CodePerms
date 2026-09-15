@@ -64,6 +64,11 @@ class PlatformArgumentsTest {
                 .suggestions(CONSOLE, "codeperms.test")
                 .isEmpty(),
             "подсказки ноды");
+        assertFalse(
+            arguments.expiry()
+                .suggestions(CONSOLE, "pe")
+                .isEmpty(),
+            "подсказки срока");
     }
 
     @Test
@@ -109,7 +114,7 @@ class PlatformArgumentsTest {
 
     private static PermsArguments arguments() {
         Snapshot snapshot = snapshot();
-        return new PlatformArguments(new NameResolver(() -> snapshot), () -> snapshot, PermsLimits.defaults());
+        return new PlatformArguments(new NameResolver(() -> snapshot), () -> snapshot, () -> PermsLimits.defaults());
     }
 
     private static Snapshot snapshot() {
