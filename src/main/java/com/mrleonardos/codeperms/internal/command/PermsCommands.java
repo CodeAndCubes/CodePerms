@@ -1,11 +1,7 @@
 package com.mrleonardos.codeperms.internal.command;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -40,6 +36,7 @@ public final class PermsCommands {
     private static final String EXPIRY_ARGUMENT = "expiry";
     private static final String TRACK_ARGUMENT = "track";
     private static final String FLAGS_ARGUMENT = "flags";
+    private static final String PAGE_ARGUMENT = "page";
 
     private static final String DRY_RUN_FLAG = "--dry-run";
     private static final String FORCE_FLAG = "--force";
@@ -50,16 +47,19 @@ public final class PermsCommands {
     private final Supplier<PermsLimits> limits;
     private final PermsArguments arguments;
     private final PermsSubjects subjects;
+    private final PermsPresents presents;
     private final PermsMaintenance maintenance;
     private final DebugView debug;
+    private CommandNode root;
 
     public PermsCommands(SingleWriter writer, PermsAdmin admin, Supplier<PermsLimits> limits, PermsArguments arguments,
-        PermsSubjects subjects, PermsMaintenance maintenance, DebugView debug) {
+        PermsSubjects subjects, PermsPresents presents, PermsMaintenance maintenance, DebugView debug) {
         this.writer = writer;
         this.admin = admin;
         this.limits = limits;
         this.arguments = arguments;
         this.subjects = subjects;
+        this.presents = presents;
         this.maintenance = maintenance;
         this.debug = debug;
     }
@@ -68,7 +68,27 @@ public final class PermsCommands {
         commands.register(root());
     }
 
+    /**
+     * Фактическое дерево команд, каким его увидит сервер.
+     *
+     * <p>
+     * Дерево строится один раз: повторный вызов отдаёт тот же объект, поэтому имя корня для карточек
+     * спрашивается у зарегистрированного дерева, а не у параллельной строки в коде. Смена корня
+     * меняет команды и клики вместе.
+     */
     public CommandNode root() {
+        if (root == null) {
+            root = buildRoot();
+        }
+        return root;
+    }
+
+    /** Имя фактического корня: из него собираются клики карточек. */
+    public String rootName() {
+        return root().name();
+    }
+
+    private CommandNode buildRoot() {
         return CommandNode.literal("perms")
             .usage(PermsMessages.USAGE_ROOT)
             .child(
@@ -110,11 +130,13 @@ public final class PermsCommands {
             .child(
                 CommandNode.literal("list")
                     .permission(PermsPermissions.GROUP_LIST)
+                    .optionalArg(PAGE_ARGUMENT, ArgumentTypes.integer(1, Integer.MAX_VALUE))
                     .executes(this::groupList))
             .child(
                 CommandNode.literal("info")
                     .permission(PermsPermissions.GROUP_INFO)
                     .arg(GROUP_ARGUMENT, arguments.groupId())
+                    .optionalArg(PAGE_ARGUMENT, ArgumentTypes.integer(1, Integer.MAX_VALUE))
                     .executes(this::groupInfo))
             .child(
                 CommandNode.literal("create")
@@ -196,6 +218,7 @@ public final class PermsCommands {
                 CommandNode.literal("info")
                     .permission(PermsPermissions.PLAYER_INFO)
                     .arg(PLAYER_ARGUMENT, arguments.player())
+                    .optionalArg(PAGE_ARGUMENT, ArgumentTypes.integer(1, Integer.MAX_VALUE))
                     .executes(this::playerInfo))
             .child(
                 CommandNode.literal("setgroup")
@@ -257,6 +280,7 @@ public final class PermsCommands {
             .child(
                 CommandNode.literal("list")
                     .permission(PermsPermissions.TRACK_LIST)
+                    .optionalArg(PAGE_ARGUMENT, ArgumentTypes.integer(1, Integer.MAX_VALUE))
                     .executes(this::trackList))
             .child(
                 CommandNode.literal("info")
@@ -325,26 +349,20 @@ public final class PermsCommands {
             context.reply(PermsMessages.GROUP_EMPTY);
             return;
         }
-        Map<String, String> lines = new LinkedHashMap<>();
-        for (GroupRecord group : sortedByWeight(snapshot)) {
-            lines.put(group.id(), group.id() + " (" + group.weight() + ")");
-        }
-        context.reply(PermsMessages.GROUP_LIST, join(lines.values()));
+        presents.groupList(context, snapshot, viewer(context), context.getOrDefault(PAGE_ARGUMENT, 1), rootName());
     }
 
     private void groupInfo(CommandContext context) {
         String groupId = context.get(GROUP_ARGUMENT);
-        GroupRecord group = writer.snapshot()
-            .group(groupId)
+        Snapshot snapshot = writer.snapshot();
+        GroupRecord group = snapshot.group(groupId)
             .orElse(null);
         if (group == null) {
             context.replyError(PermsMessages.FAILURE_NOT_FOUND, groupId);
             return;
         }
-        context.reply(PermsMessages.GROUP_INFO_HEADER, group.id(), group.displayName(), group.weight());
-        context.reply(PermsMessages.GROUP_INFO_PARENTS, join(group.inherits()));
-        context.reply(PermsMessages.GROUP_INFO_NODES, joinNodes(group.nodes()));
-        context.reply(PermsMessages.GROUP_INFO_META, joinMeta(group.meta()));
+        presents
+            .groupInfo(context, snapshot, group, viewer(context), context.getOrDefault(PAGE_ARGUMENT, 1), rootName());
     }
 
     private void groupCreate(CommandContext context) {
@@ -434,20 +452,14 @@ public final class PermsCommands {
     private void playerInfo(CommandContext context) {
         UUID player = context.get(PLAYER_ARGUMENT);
         Snapshot snapshot = writer.snapshot();
-        context.reply(PermsMessages.PLAYER_INFO_HEADER, nameOf(snapshot, player), player.toString());
-        UserRecord user = snapshot.user(player)
-            .orElse(null);
-        if (user == null) {
-            context.reply(PermsMessages.PLAYER_INFO_PRIMARY, EMPTY_MARKER);
-            context.reply(PermsMessages.PLAYER_INFO_GROUPS, EMPTY_MARKER);
-            context.reply(PermsMessages.PLAYER_INFO_NODES, EMPTY_MARKER);
-            context.reply(PermsMessages.PLAYER_INFO_META, EMPTY_MARKER);
-            return;
-        }
-        context.reply(PermsMessages.PLAYER_INFO_PRIMARY, user.primary() == null ? EMPTY_MARKER : user.primary());
-        context.reply(PermsMessages.PLAYER_INFO_GROUPS, joinGroups(snapshot, user));
-        context.reply(PermsMessages.PLAYER_INFO_NODES, joinNodes(user.nodes()));
-        context.reply(PermsMessages.PLAYER_INFO_META, joinMeta(user.meta()));
+        presents.playerInfo(
+            context,
+            snapshot,
+            player,
+            nameOf(snapshot, player),
+            viewer(context),
+            context.getOrDefault(PAGE_ARGUMENT, 1),
+            rootName());
     }
 
     private void playerSetGroup(CommandContext context) {
@@ -544,11 +556,7 @@ public final class PermsCommands {
             context.reply(PermsMessages.TRACK_EMPTY);
             return;
         }
-        List<String> lines = new ArrayList<>();
-        for (TrackRecord track : new TreeMap<>(snapshot.tracks()).values()) {
-            lines.add(track.name() + ": " + join(track.groups()));
-        }
-        context.reply(PermsMessages.TRACK_LIST, join(lines));
+        presents.trackList(context, snapshot, viewer(context), context.getOrDefault(PAGE_ARGUMENT, 1), rootName());
     }
 
     private void trackInfo(CommandContext context) {
@@ -560,7 +568,7 @@ public final class PermsCommands {
             context.replyError(PermsMessages.TRACK_UNKNOWN, name);
             return;
         }
-        context.reply(PermsMessages.TRACK_INFO, track.name(), join(track.groups()));
+        presents.trackInfo(context, track, viewer(context), rootName());
     }
 
     private void trackPromote(CommandContext context) {
@@ -579,7 +587,7 @@ public final class PermsCommands {
             return;
         }
         String playerName = nameOf(snapshot, player);
-        String current = currentTrackGroup(snapshot, player, track);
+        String current = currentTrackGroup(snapshot, player, track, now());
         if (current == null) {
             context.replyError(PermsMessages.TRACK_NOT_MEMBER, playerName, track.name());
             return;
@@ -723,18 +731,19 @@ public final class PermsCommands {
         return null;
     }
 
-    private String currentTrackGroup(Snapshot snapshot, UUID player, TrackRecord track) {
+    /** Группа игрока на треке: основная, если стоит на нём, иначе старшая из действующих. */
+    public static String currentTrackGroup(Snapshot snapshot, UUID player, TrackRecord track, long nowMillis) {
         UserRecord user = snapshot.user(player)
             .orElse(null);
         if (user == null) {
             return null;
         }
-        if (user.primary() != null && track.position(user.primary()) >= 0 && user.memberOf(user.primary(), now())) {
+        if (user.primary() != null && track.position(user.primary()) >= 0 && user.memberOf(user.primary(), nowMillis)) {
             return user.primary();
         }
         String best = null;
         int bestWeight = 0;
-        for (String groupId : user.activeGroupIds(now())) {
+        for (String groupId : user.activeGroupIds(nowMillis)) {
             GroupRecord group = snapshot.group(groupId)
                 .orElse(null);
             if (group == null || track.position(groupId) < 0) {
@@ -824,15 +833,9 @@ public final class PermsCommands {
         }
     }
 
-    private List<GroupRecord> sortedByWeight(Snapshot snapshot) {
-        List<GroupRecord> groups = new ArrayList<>(
-            snapshot.groups()
-                .values());
-        groups.sort(
-            (left, right) -> right.weight() != left.weight() ? Integer.compare(right.weight(), left.weight())
-                : left.id()
-                    .compareTo(right.id()));
-        return groups;
+    private UUID viewer(CommandContext context) {
+        return subjects.subjectOf(context)
+            .orElse(null);
     }
 
     private String nameOf(Snapshot snapshot, UUID player) {
@@ -858,48 +861,6 @@ public final class PermsCommands {
             .size()
             + user.nodes()
                 .size();
-    }
-
-    private static String joinGroups(Snapshot snapshot, UserRecord user) {
-        List<String> lines = new ArrayList<>();
-        for (UserRecord.Grant grant : user.groups()) {
-            if (grant.expiredAt(now())) {
-                continue;
-            }
-            if (grant.permanent()) {
-                lines.add(grant.groupId());
-            } else {
-                lines.add(grant.groupId() + " (" + Durations.format(remaining(grant)) + ")");
-            }
-        }
-        return join(lines);
-    }
-
-    private static String joinNodes(List<NodeEntry> nodes) {
-        List<String> lines = new ArrayList<>();
-        for (NodeEntry entry : nodes) {
-            lines.add(entry.toShortString());
-        }
-        return join(lines);
-    }
-
-    private static String joinMeta(Map<String, String> meta) {
-        List<String> lines = new ArrayList<>();
-        for (Map.Entry<String, String> entry : meta.entrySet()) {
-            lines.add(entry.getKey() + "=" + entry.getValue());
-        }
-        return join(lines);
-    }
-
-    private static String join(Iterable<String> parts) {
-        StringBuilder joined = new StringBuilder();
-        for (String part : parts) {
-            if (joined.length() > 0) {
-                joined.append(", ");
-            }
-            joined.append(part);
-        }
-        return joined.length() == 0 ? EMPTY_MARKER : joined.toString();
     }
 
     private static int remaining(UserRecord.Grant grant) {

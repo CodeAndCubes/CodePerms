@@ -48,6 +48,7 @@ class PermsCommandsTest {
     private FakeWriter writer;
     private PermsAdminImpl admin;
     private TestSubjects subjects;
+    private RecordingPresents presents;
     private RecordingMaintenance maintenance;
     private PermsCommands commands;
 
@@ -59,6 +60,7 @@ class PermsCommandsTest {
             new ChangeCoalescer(LogManager.getLogger("codeperms-test")),
             PermsLimits.defaults());
         subjects = new TestSubjects();
+        presents = new RecordingPresents();
         maintenance = new RecordingMaintenance();
         commands = new PermsCommands(
             writer,
@@ -66,6 +68,7 @@ class PermsCommandsTest {
             () -> PermsLimits.defaults(),
             arguments(),
             subjects,
+            presents,
             maintenance,
             new DebugView(new ResolverImpl()));
     }
@@ -490,6 +493,42 @@ class PermsCommandsTest {
                 .is(PermsMessages.RELOAD_DONE));
     }
 
+    @Test
+    void listsAndCardsGoThroughThePresents() {
+        writer.seed(
+            Snapshot.builder()
+                .group(group("vip", 10))
+                .group(group("player", 0))
+                .track(TrackRecord.of("ladder", Arrays.asList("player", "vip")))
+                .user(user("Steve", "vip", Collections.singletonList(UserRecord.Grant.permanent("vip"))))
+                .build());
+        TestCommandContext groups = new TestCommandContext().set("page", 2);
+        execute(child(child(commands.root(), "group"), "list"), groups);
+        TestCommandContext groupCard = new TestCommandContext().set("group", "vip");
+        execute(child(child(commands.root(), "group"), "info"), groupCard);
+        TestCommandContext playerCard = new TestCommandContext().set("player", PLAYER.toString());
+        execute(child(child(commands.root(), "player"), "info"), playerCard);
+        TestCommandContext playerNodes = new TestCommandContext().set("player", PLAYER.toString())
+            .set("page", 3);
+        execute(child(child(commands.root(), "player"), "info"), playerNodes);
+        TestCommandContext tracks = new TestCommandContext();
+        execute(child(child(commands.root(), "track"), "list"), tracks);
+        TestCommandContext trackCard = new TestCommandContext().set("track", "ladder");
+        execute(child(child(commands.root(), "track"), "info"), trackCard);
+
+        assertEquals(
+            Arrays.asList(
+                "groupList:2:2",
+                "groupInfo:vip:1",
+                "playerInfo:Steve:1",
+                "playerInfo:Steve:3",
+                "trackList:1:1",
+                "trackInfo:ladder"),
+            presents.calls,
+            "команды отдают вывод карточек слою present со своей страницей");
+        assertEquals(commands.rootName(), presents.root, "клики получают имя фактического корня дерева");
+    }
+
     private static void execute(CommandNode node, TestCommandContext context) {
         for (ArgumentSpec spec : node.arguments()) {
             if (!context.has(spec.name())) {
@@ -649,6 +688,52 @@ class PermsCommandsTest {
         @Override
         public ContextSet contexts(UUID player) {
             return ContextSet.empty();
+        }
+    }
+
+    private static final class RecordingPresents implements PermsPresents {
+
+        private final List<String> calls = new ArrayList<>();
+        private String root;
+
+        @Override
+        public void groupList(CommandContext context, Snapshot snapshot, UUID viewer, int page, String root) {
+            remember(root);
+            calls.add(
+                "groupList:" + snapshot.groups()
+                    .size() + ":" + page);
+        }
+
+        @Override
+        public void groupInfo(CommandContext context, Snapshot snapshot, GroupRecord group, UUID viewer, int page,
+            String root) {
+            remember(root);
+            calls.add("groupInfo:" + group.id() + ":" + page);
+        }
+
+        @Override
+        public void playerInfo(CommandContext context, Snapshot snapshot, UUID player, String name, UUID viewer,
+            int page, String root) {
+            remember(root);
+            calls.add("playerInfo:" + name + ":" + page);
+        }
+
+        @Override
+        public void trackList(CommandContext context, Snapshot snapshot, UUID viewer, int page, String root) {
+            remember(root);
+            calls.add(
+                "trackList:" + snapshot.tracks()
+                    .size() + ":" + page);
+        }
+
+        @Override
+        public void trackInfo(CommandContext context, TrackRecord track, UUID viewer, String root) {
+            remember(root);
+            calls.add("trackInfo:" + track.name());
+        }
+
+        private void remember(String actualRoot) {
+            root = actualRoot;
         }
     }
 

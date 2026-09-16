@@ -15,12 +15,7 @@ codeperms.message.me.no_groups=No groups
 codeperms.message.me.meta=Meta: %s = %s
 codeperms.message.me.no_meta=No personal meta
 
-codeperms.message.group.list=Groups: %s
 codeperms.message.group.empty=No groups
-codeperms.message.group.info.header=Group %s (%s), weight %s
-codeperms.message.group.info.parents=Parents: %s
-codeperms.message.group.info.nodes=Nodes: %s
-codeperms.message.group.info.meta=Meta: %s
 codeperms.message.group.created=Group %s created
 codeperms.message.group.deleted=Group %s deleted
 codeperms.message.group.renamed=Group %s is now called %s
@@ -33,11 +28,6 @@ codeperms.message.group.node.removed=Group %s no longer holds node %s
 codeperms.message.group.meta.set=%s now holds %s = %s
 codeperms.message.group.meta.removed=%s no longer holds %s
 
-codeperms.message.player.info.header=Player %s (%s)
-codeperms.message.player.info.primary=Primary group: %s
-codeperms.message.player.info.groups=Groups: %s
-codeperms.message.player.info.nodes=Personal nodes: %s
-codeperms.message.player.info.meta=Meta: %s
 codeperms.message.player.group.set=Player %s now holds %s as primary group
 codeperms.message.player.group.cleared=Primary group of %s is cleared
 codeperms.message.player.group.added=Player %s granted group %s
@@ -49,9 +39,7 @@ codeperms.message.player.meta.set=%s now holds %s = %s
 codeperms.message.player.meta.removed=%s no longer holds %s
 codeperms.message.player.cleaned=Expired entries taken from %s: %s
 
-codeperms.message.track.list=Tracks: %s
 codeperms.message.track.empty=No tracks
-codeperms.message.track.info=Track %s: %s
 codeperms.message.track.unknown=No track named %s
 codeperms.message.track.promoted=%s promoted to %s
 codeperms.message.track.demoted=%s demoted to %s
@@ -66,6 +54,32 @@ codeperms.message.import.unreadable=The core file is not readable, the import di
 codeperms.message.import.nothing=Nothing to import
 codeperms.message.export.done=Export written: groups %s, players %s, nodes %s, meta %s
 codeperms.message.reload.done=Permission files reloaded: revision %s, groups %s, tracks %s, players %s
+
+codeperms.message.card.groups=Groups
+codeperms.message.card.tracks=Tracks
+codeperms.message.card.identifier=Identifier
+codeperms.message.card.none=none
+codeperms.message.card.nodes=Nodes
+codeperms.message.card.nodes.list=all nodes
+codeperms.message.card.nodes.group.title=Nodes of %s
+codeperms.message.card.nodes.player.title=Personal nodes of %s
+codeperms.message.card.nodes.empty=No nodes
+codeperms.message.card.expires=expires in %s
+codeperms.message.card.no_tracks=Not on any track
+codeperms.message.card.group.weight=Weight
+codeperms.message.card.group.parents=Parents
+codeperms.message.card.group.members=Members
+codeperms.message.card.meta=Meta
+codeperms.message.card.group.hover=members %s · nodes %s
+codeperms.message.card.group.node.button=node
+codeperms.message.card.group.node.hover=set or remove a node of the group
+codeperms.message.card.group.meta.button=meta
+codeperms.message.card.group.meta.hover=set meta of the group
+codeperms.message.card.group.weight.button=weight
+codeperms.message.card.group.weight.hover=change the weight of the group
+codeperms.message.card.track.chain=Chain
+codeperms.message.card.track.hover=Track %s
+codeperms.message.card.player.primary=Primary group
 
 codeperms.message.debug.header=Check of node %s for %s
 codeperms.message.debug.row.allow=%s: %s, matched contexts: %s, specificity: %s, allows

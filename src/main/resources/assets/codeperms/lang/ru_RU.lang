@@ -15,12 +15,7 @@ codeperms.message.me.no_groups=Групп нет
 codeperms.message.me.meta=Мета: %s = %s
 codeperms.message.me.no_meta=Личной мета нет
 
-codeperms.message.group.list=Группы: %s
 codeperms.message.group.empty=Групп нет
-codeperms.message.group.info.header=Группа %s (%s), вес %s
-codeperms.message.group.info.parents=Родители: %s
-codeperms.message.group.info.nodes=Ноды: %s
-codeperms.message.group.info.meta=Мета: %s
 codeperms.message.group.created=Группа %s создана
 codeperms.message.group.deleted=Группа %s удалена
 codeperms.message.group.renamed=Группа %s теперь называется %s
@@ -33,11 +28,6 @@ codeperms.message.group.node.removed=У группы %s снята нода %s
 codeperms.message.group.meta.set=Группе %s записано %s = %s
 codeperms.message.group.meta.removed=У группы %s убрано %s
 
-codeperms.message.player.info.header=Игрок %s (%s)
-codeperms.message.player.info.primary=Основная группа: %s
-codeperms.message.player.info.groups=Группы: %s
-codeperms.message.player.info.nodes=Личные ноды: %s
-codeperms.message.player.info.meta=Мета: %s
 codeperms.message.player.group.set=Игроку %s назначена группа %s
 codeperms.message.player.group.cleared=С игрока %s снято назначение основной группы
 codeperms.message.player.group.added=Игроку %s выдана группа %s
@@ -49,9 +39,7 @@ codeperms.message.player.meta.set=Игроку %s записано %s = %s
 codeperms.message.player.meta.removed=У игрока %s убрано %s
 codeperms.message.player.cleaned=У игрока %s снято истёкших записей: %s
 
-codeperms.message.track.list=Треки: %s
 codeperms.message.track.empty=Треков нет
-codeperms.message.track.info=Трек %s: %s
 codeperms.message.track.unknown=Трека %s не существует
 codeperms.message.track.promoted=Игрок %s повышен до %s
 codeperms.message.track.demoted=Игрок %s понижен до %s
@@ -66,6 +54,32 @@ codeperms.message.import.unreadable=Файл ядра не читается, и�
 codeperms.message.import.nothing=Переносить нечего
 codeperms.message.export.done=Экспорт записан: групп %s, игроков %s, нод %s, мета %s
 codeperms.message.reload.done=Файлы прав перечитаны: ревизия %s, групп %s, треков %s, игроков %s
+
+codeperms.message.card.groups=Группы
+codeperms.message.card.tracks=Треки
+codeperms.message.card.identifier=Идентификатор
+codeperms.message.card.none=нет
+codeperms.message.card.nodes=Ноды
+codeperms.message.card.nodes.list=все ноды
+codeperms.message.card.nodes.group.title=Ноды группы %s
+codeperms.message.card.nodes.player.title=Личные ноды %s
+codeperms.message.card.nodes.empty=Нод нет
+codeperms.message.card.expires=истечёт через %s
+codeperms.message.card.no_tracks=В треках не состоит
+codeperms.message.card.group.weight=Вес
+codeperms.message.card.group.parents=Родители
+codeperms.message.card.group.members=Участники
+codeperms.message.card.meta=Мета
+codeperms.message.card.group.hover=участников %s · нод %s
+codeperms.message.card.group.node.button=нода
+codeperms.message.card.group.node.hover=записать или снять ноду группы
+codeperms.message.card.group.meta.button=мета
+codeperms.message.card.group.meta.hover=записать мета группы
+codeperms.message.card.group.weight.button=вес
+codeperms.message.card.group.weight.hover=сменить вес группы
+codeperms.message.card.track.chain=Цепочка
+codeperms.message.card.track.hover=Трек %s
+codeperms.message.card.player.primary=Основная группа
 
 codeperms.message.debug.header=Проверка ноды %s для %s
 codeperms.message.debug.row.allow=%s: %s, совпало контекстов: %s, точность: %s, разрешает

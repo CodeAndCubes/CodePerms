@@ -153,6 +153,11 @@ public final class CodePermsMod {
         contexts = new PlayerContexts(PermsApi.contexts(), writer::snapshot, operators, LOG);
         NameResolver names = new NameResolver(writer::snapshot);
         SenderSubjects subjects = new SenderSubjects(names, contexts);
+        CorePermissionService service = new CorePermissionService(
+            writer::snapshot,
+            resolver,
+            subjects,
+            main::logChecks);
 
         importer = new CoreGroupsImporter(configs, ceilings, LOG);
         PlatformMaintenance maintenance = new PlatformMaintenance(
@@ -171,13 +176,14 @@ public final class CodePermsMod {
             ceilings,
             new PlatformArguments(names, writer::snapshot, ceilings),
             subjects,
+            new PermsPresent(service::has, System::currentTimeMillis),
             maintenance,
             new DebugView(resolver));
 
         lifecycle = new ForgeLifecycle(contexts, operators);
         CodeApi.commands()
             .register(commands.root());
-        return new CorePermissionService(writer::snapshot, resolver, subjects, main::logChecks);
+        return service;
     }
 
     private void audit(ChangeBatch batch) {

@@ -19,12 +19,7 @@ public final class PermsMessages {
     public static final String ME_META = "codeperms.message.me.meta";
     public static final String ME_NO_META = "codeperms.message.me.no_meta";
 
-    public static final String GROUP_LIST = "codeperms.message.group.list";
     public static final String GROUP_EMPTY = "codeperms.message.group.empty";
-    public static final String GROUP_INFO_HEADER = "codeperms.message.group.info.header";
-    public static final String GROUP_INFO_PARENTS = "codeperms.message.group.info.parents";
-    public static final String GROUP_INFO_NODES = "codeperms.message.group.info.nodes";
-    public static final String GROUP_INFO_META = "codeperms.message.group.info.meta";
     public static final String GROUP_CREATED = "codeperms.message.group.created";
     public static final String GROUP_DELETED = "codeperms.message.group.deleted";
     public static final String GROUP_RENAMED = "codeperms.message.group.renamed";
@@ -37,11 +32,6 @@ public final class PermsMessages {
     public static final String GROUP_META_SET = "codeperms.message.group.meta.set";
     public static final String GROUP_META_REMOVED = "codeperms.message.group.meta.removed";
 
-    public static final String PLAYER_INFO_HEADER = "codeperms.message.player.info.header";
-    public static final String PLAYER_INFO_PRIMARY = "codeperms.message.player.info.primary";
-    public static final String PLAYER_INFO_GROUPS = "codeperms.message.player.info.groups";
-    public static final String PLAYER_INFO_NODES = "codeperms.message.player.info.nodes";
-    public static final String PLAYER_INFO_META = "codeperms.message.player.info.meta";
     public static final String PLAYER_GROUP_SET = "codeperms.message.player.group.set";
     public static final String PLAYER_GROUP_CLEARED = "codeperms.message.player.group.cleared";
     public static final String PLAYER_GROUP_ADDED = "codeperms.message.player.group.added";
@@ -53,9 +43,7 @@ public final class PermsMessages {
     public static final String PLAYER_META_REMOVED = "codeperms.message.player.meta.removed";
     public static final String PLAYER_CLEANED = "codeperms.message.player.cleaned";
 
-    public static final String TRACK_LIST = "codeperms.message.track.list";
     public static final String TRACK_EMPTY = "codeperms.message.track.empty";
-    public static final String TRACK_INFO = "codeperms.message.track.info";
     public static final String TRACK_UNKNOWN = "codeperms.message.track.unknown";
     public static final String TRACK_PROMOTED = "codeperms.message.track.promoted";
     public static final String TRACK_DEMOTED = "codeperms.message.track.demoted";
@@ -70,6 +58,32 @@ public final class PermsMessages {
     public static final String IMPORT_NOTHING = "codeperms.message.import.nothing";
     public static final String EXPORT_DONE = "codeperms.message.export.done";
     public static final String RELOAD_DONE = "codeperms.message.reload.done";
+
+    public static final String CARD_GROUPS = "codeperms.message.card.groups";
+    public static final String CARD_TRACKS = "codeperms.message.card.tracks";
+    public static final String CARD_IDENTIFIER = "codeperms.message.card.identifier";
+    public static final String CARD_NONE = "codeperms.message.card.none";
+    public static final String CARD_NODES = "codeperms.message.card.nodes";
+    public static final String CARD_NODES_LIST = "codeperms.message.card.nodes.list";
+    public static final String CARD_NODES_GROUP_TITLE = "codeperms.message.card.nodes.group.title";
+    public static final String CARD_NODES_PLAYER_TITLE = "codeperms.message.card.nodes.player.title";
+    public static final String CARD_NODES_EMPTY = "codeperms.message.card.nodes.empty";
+    public static final String CARD_EXPIRES = "codeperms.message.card.expires";
+    public static final String CARD_NO_TRACKS = "codeperms.message.card.no_tracks";
+    public static final String CARD_GROUP_WEIGHT = "codeperms.message.card.group.weight";
+    public static final String CARD_GROUP_PARENTS = "codeperms.message.card.group.parents";
+    public static final String CARD_GROUP_MEMBERS = "codeperms.message.card.group.members";
+    public static final String CARD_META = "codeperms.message.card.meta";
+    public static final String CARD_GROUP_HOVER = "codeperms.message.card.group.hover";
+    public static final String CARD_GROUP_NODE_BUTTON = "codeperms.message.card.group.node.button";
+    public static final String CARD_GROUP_NODE_HOVER = "codeperms.message.card.group.node.hover";
+    public static final String CARD_GROUP_META_BUTTON = "codeperms.message.card.group.meta.button";
+    public static final String CARD_GROUP_META_HOVER = "codeperms.message.card.group.meta.hover";
+    public static final String CARD_GROUP_WEIGHT_BUTTON = "codeperms.message.card.group.weight.button";
+    public static final String CARD_GROUP_WEIGHT_HOVER = "codeperms.message.card.group.weight.hover";
+    public static final String CARD_TRACK_CHAIN = "codeperms.message.card.track.chain";
+    public static final String CARD_TRACK_HOVER = "codeperms.message.card.track.hover";
+    public static final String CARD_PLAYER_PRIMARY = "codeperms.message.card.player.primary";
 
     public static final String DEBUG_HEADER = "codeperms.message.debug.header";
     public static final String DEBUG_ROW_ALLOW = "codeperms.message.debug.row.allow";
