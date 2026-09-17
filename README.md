@@ -26,9 +26,9 @@
 
 | Файл | Куда |
 |---|---|
-| `CodePerms-1.1.0-server.jar` | `mods/` сервера |
-| `codeperms-1.1.0-api.jar` | тем, кто пишет свой провайдер прав: компиляция, на сервер не нужен |
-| `codeperms-1.1.0-dev.jar` | им же: deobf-версия для dev-запусков |
+| `CodePerms-1.2.0-server.jar` | `mods/` сервера |
+| `codeperms-1.2.0-api.jar` | тем, кто пишет свой провайдер прав: компиляция, на сервер не нужен |
+| `codeperms-1.2.0-dev.jar` | им же: deobf-версия для dev-запусков |
 
 Клиентской части нет: ванильный клиент заходит на сервер без этого мода. Ставится после CodeCore.
 Java 8 или 17 и 21 под lwjgl3ify, Minecraft 1.7.10, Forge 10.13.4.1614.
@@ -42,15 +42,15 @@ Java 8 или 17 и 21 под lwjgl3ify, Minecraft 1.7.10, Forge 10.13.4.1614.
 ./gradlew build
 ```
 
-В `build/libs` появятся универсальный `CodePerms-1.1.0.jar` для dev-запусков и
-`CodePerms-1.1.0-server.jar` для сервера. Раздавать универсальный jar игрокам нельзя: в нём
+В `build/libs` появятся универсальный `CodePerms-1.2.0.jar` для dev-запусков и
+`CodePerms-1.2.0-server.jar` для сервера. Раздавать универсальный jar игрокам нельзя: в нём
 есть серверный код.
 
 ## Подключение
 
 1. Собрать и опубликовать зависимости локально: `CodeSides` и `CodeCore` через `publishToMavenLocal`.
 2. Здесь: `./gradlew build`.
-3. На сервер в `mods` положить `codecore` и `CodePerms-1.1.0-server.jar`.
+3. На сервер в `mods` положить `codecore` и `CodePerms-1.2.0-server.jar`.
 
 Права лежат в `config/code/permissions/`: `perms.toml` с настройками, `perms-groups.toml` с группами и
 треками, `perms-players.json` с игроками. Рядом там же живёт `core-groups.toml` встроенной реализации
